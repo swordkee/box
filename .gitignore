@@ -1,0 +1,7 @@
+/.idea/
+/.gradle/
+local.properties
+*/build/
+handleRelease.bat
+adbConnect.bat
+build.sh

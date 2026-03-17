@@ -1,0 +1,34 @@
+name: GENERATE APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 8
+        uses: actions/setup-java@v3
+        with:
+          java-version: '8'
+          distribution: 'temurin'
+
+      - name: Build With Gradle
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --build-cache --parallel --daemon --warning-mode all
+
+      - name: Prepare APK
+        run: |
+          mkdir -p ${{ github.workspace }}/apk/
+          find . -name "*.apk" -exec cp {} ${{ github.workspace }}/apk/ \;
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@master
+        with:
+          name: box
+          path: ${{ github.workspace }}/apk/*
