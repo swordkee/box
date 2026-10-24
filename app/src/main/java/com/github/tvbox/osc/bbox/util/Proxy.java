@@ -58,7 +58,9 @@ public class Proxy {
                     if (response.isSuccessful()) {
                         assert response.body() != null;
                         String respContent = response.body().string();
-                        String m3u8Content = processM3u8Content(respContent, redirectUrl);
+                        // NOTE(2026-10-24 API15 port): 分段/密钥/子清单全部改写走本地代理，
+                        // 否则系统播放器(TLS1.0) 直连 https 分段必死
+                        String m3u8Content = proxifyM3u8Lines(redirectUrl, processM3u8Content(respContent, redirectUrl));
                         result[0] = 200;
                         result[1] = "application/vnd.apple.mpegurl";
                         result[2] = new ByteArrayInputStream(m3u8Content.getBytes());
@@ -142,6 +144,48 @@ public class Proxy {
             }
         }
         return processedM3u8.toString().replace("\\n\\n", "\n");
+    }
+
+    // NOTE(2026-10-24 API15 port): 把 m3u8 内的分段/密钥/子清单全部改写为本地代理 URL
+    // 系统播放器(硬解)只能搞 http，https 上游由本代理用 BC TLS1.2 取回
+    public static String proxifyM3u8Lines(String basePath, String content) {
+        String lineSep = content.contains("\r\n") ? "\r\n" : "\n";
+        String[] lines = content.split(lineSep);
+        StringBuilder sb = new StringBuilder();
+        java.util.regex.Matcher m;
+        for (String line : lines) {
+            String t = line.trim();
+            if (t.length() == 0) {
+                sb.append(line).append(lineSep);
+                continue;
+            }
+            if (t.startsWith("#EXT-X-KEY") || t.startsWith("#EXT-X-MAP")) {
+                StringBuffer out = new StringBuffer();
+                m = java.util.regex.Pattern.compile("URI=\"([^\"]+)\"").matcher(t);
+                while (m.find()) {
+                    String abs = joinUrl(basePath, m.group(1));
+                    m.appendReplacement(out, java.util.regex.Matcher.quoteReplacement("URI=\"" + localProxyUrl(abs, "ts") + "\""));
+                }
+                m.appendTail(out);
+                sb.append(out).append(lineSep);
+            } else if (!t.startsWith("#")) {
+                String abs = joinUrl(basePath, t);
+                String type = abs.contains(".m3u8") ? "m3u8" : "ts";
+                sb.append(localProxyUrl(abs, type)).append(lineSep);
+            } else {
+                sb.append(line).append(lineSep);
+            }
+        }
+        return sb.toString();
+    }
+
+    public static String localProxyUrl(String absUrl, String type) {
+        try {
+            String addr = ControlManager.get().getAddress(true);
+            return addr + "proxy?do=proxy&go=live&type=" + type + "&url=" + URLEncoder.encode(absUrl, "UTF-8");
+        } catch (Throwable th) {
+            return absUrl;
+        }
     }
 
     private static String joinUrl(String base, String url) {

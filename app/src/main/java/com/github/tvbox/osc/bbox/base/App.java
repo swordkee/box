@@ -129,7 +129,7 @@ public class App extends MultiDexApplication {
         initBundledConfig();
 
         putDefault(HawkConfig.DEBUG_OPEN, false);
-        putDefault(HawkConfig.PLAY_TYPE, 0); //硬解优先（系统 MediaPlayer=OMX 硬解）；isVideo getTrackInfo 崩溃已修；失败时 autoRetry 自动回退 ijk 软解
+        putDefault(HawkConfig.PLAY_TYPE, 1); //资源站 VOD 流均为 https，系统播放器 TLS1.0 拉不到清单，只有 ijk(自带 TLS1.2) 能播
         putDefault(HawkConfig.HOME_REC, 1);
         // 默认渲染方式：推荐手机使用0-texture，电视1-surface
         putDefault(HawkConfig.PLAY_RENDER, 1);

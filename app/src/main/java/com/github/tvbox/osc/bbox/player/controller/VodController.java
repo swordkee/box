@@ -1287,12 +1287,25 @@ public class VodController extends BaseController {
     private void processM3u8Content(String url, String content, HashMap<String, String> headers) {
         String basePath = getBasePath(url);
         RemoteServer.m3u8Content = M3u8.purify(basePath, content);
-        if (RemoteServer.m3u8Content == null || M3u8.currentAdCount==0) {
+        boolean adsRemoved = RemoteServer.m3u8Content != null && M3u8.currentAdCount > 0;
+        // NOTE(2026-10-24 API15 port): 系统播放器(硬解) TLS1.0 拉不动 https 分段 ->
+        // https m3u8 全量改写走本地代理（BC 取流），硬解+可播两全
+        boolean systemPlayer = com.orhanobut.hawk.Hawk.get(com.github.tvbox.osc.bbox.util.HawkConfig.PLAY_TYPE, 0) == 0;
+        if (systemPlayer && url.startsWith("https")) {
+            String body = adsRemoved ? RemoteServer.m3u8Content : content;
+            RemoteServer.m3u8Content = com.github.tvbox.osc.bbox.util.Proxy.proxifyM3u8Lines(basePath, body);
+            listener.startPlayUrl(ControlManager.get().getAddress(true) + "proxyM3u8", headers);
+            if (adsRemoved) {
+                Toast.makeText(getContext(), "已移除视频广告 " + M3u8.currentAdCount + " 条", Toast.LENGTH_SHORT).show();
+            }
+            return;
+        }
+        if (adsRemoved) {
+            listener.startPlayUrl(ControlManager.get().getAddress(true) + "proxyM3u8", headers);
+            Toast.makeText(getContext(), "已移除视频广告 " + M3u8.currentAdCount + " 条", Toast.LENGTH_SHORT).show();
+        } else {
             LOG.i("echo-m3u8内容解析：未检测到广告");
             listener.startPlayUrl(url, headers);
-        } else {
-            listener.startPlayUrl(ControlManager.get().getAddress(true) + "proxyM3u8", headers);
-            Toast.makeText(getContext(), "已移除视频广告 "+M3u8.currentAdCount+" 条", Toast.LENGTH_SHORT).show();
         }
     }
 
