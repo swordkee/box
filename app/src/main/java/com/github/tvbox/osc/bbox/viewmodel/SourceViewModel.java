@@ -181,12 +181,11 @@ public class SourceViewModel extends ViewModel {
                         @Override
                         public void onSuccess(Response<String> response) {
                             AbsSortXml sortXml = null;
-                            if (type == 0) {
-                                String xml = response.body();
-                                sortXml = sortXml(sortResult, xml);
-                            } else if (type == 1) {
-                                String json = response.body();
-                                sortXml = sortJson(sortResult, json);
+                            String sortBody = response.body() == null ? "" : response.body().trim();
+                            if (sortBody.startsWith("{")) {
+                                sortXml = sortJson(sortResult, sortBody);
+                            } else {
+                                sortXml = sortXml(sortResult, sortBody);
                             }
                             if (sortXml != null && Hawk.get(HawkConfig.HOME_REC, 0) == 1 && sortXml.list != null && sortXml.list.videoList != null && sortXml.list.videoList.size() > 0) {
                                 ArrayList<String> ids = new ArrayList<>();
@@ -348,13 +347,7 @@ public class SourceViewModel extends ViewModel {
 
                         @Override
                         public void onSuccess(Response<String> response) {
-                            if (type == 0) {
-                                String xml = response.body();
-                                xml(listResult, xml, homeSourceBean.getKey());
-                            } else {
-                                String json = response.body();
-                                json(listResult, json, homeSourceBean.getKey());
-                            }
+                            parseSmart(listResult, response.body(), homeSourceBean.getKey());
                         }
 
                         @Override
@@ -579,14 +572,7 @@ public class SourceViewModel extends ViewModel {
 
                         @Override
                         public void onSuccess(Response<String> response) {
-                            if (type == 0) {
-                                String xml = response.body();
-                                xml(detailResult, xml, sourceBean.getKey());
-                            } else {
-                                String json = response.body();
-                                LOG.i(json);
-                                json(detailResult, json, sourceBean.getKey());
-                            }
+                            parseSmart(detailResult, response.body(), sourceBean.getKey());
                         }
 
                         @Override
@@ -633,13 +619,7 @@ public class SourceViewModel extends ViewModel {
 
                         @Override
                         public void onSuccess(Response<String> response) {
-                            if (type == 0) {
-                                String xml = response.body();
-                                xml(searchResult, xml, sourceBean.getKey());
-                            } else {
-                                String json = response.body();
-                                json(searchResult, json, sourceBean.getKey());
-                            }
+                            parseSmart(searchResult, response.body(), sourceBean.getKey());
                         }
 
                         @Override
@@ -1259,6 +1239,16 @@ public class SourceViewModel extends ViewModel {
         }
     }
 
+    // NOTE(2026-10-24 API15 port): 资源站的 XML/JSON 默认格式不一致（暴风 list=JSON 但 search=XML），
+    // 按响应首字符智能路由，任何 macCMS 站点 type 0/1 都能正确解析
+    private AbsXml parseSmart(MutableLiveData<AbsXml> result, String body, String sourceKey) {
+        String b = body == null ? "" : body.trim();
+        if (b.startsWith("{")) {
+            return json(result, body, sourceKey);
+        }
+        return xml(result, body, sourceKey);
+    }
+
     private AbsXml xml(MutableLiveData<AbsXml> result, String xml, String sourceKey) {
         try {
             XStream xstream = new XStream(new DomDriver());//创建Xstram对象
@@ -1322,6 +1312,21 @@ public class SourceViewModel extends ViewModel {
             AbsJson absJson = gson.fromJson(json, new TypeToken<AbsJson>() {
             }.getType());
             AbsXml data = absJson.toAbsXml();
+            // NOTE(2026-10-24 API15 port): 资源站多播放组时 m3u8 组常不在第一位，每次都要手动切线路 -> m3u8 组稳定排最前
+            if (data != null && data.movie != null && data.movie.videoList != null) {
+                for (Movie.Video video : data.movie.videoList) {
+                    if (video.urlBean != null && video.urlBean.infoList != null && video.urlBean.infoList.size() > 1) {
+                        java.util.Collections.sort(video.urlBean.infoList, new java.util.Comparator<Movie.Video.UrlBean.UrlInfo>() {
+                            @Override
+                            public int compare(Movie.Video.UrlBean.UrlInfo a, Movie.Video.UrlBean.UrlInfo b) {
+                                boolean am = a.flag != null && a.flag.toLowerCase().contains("m3u8");
+                                boolean bm = b.flag != null && b.flag.toLowerCase().contains("m3u8");
+                                return am == bm ? 0 : (am ? -1 : 1);
+                            }
+                        });
+                    }
+                }
+            }
             absXml(data, sourceKey);
             if (searchResult == result) {
                 // LOG.d("function: private AbsXml json(MutableLiveData<AbsXml> result, String json, String sourceKey)"+data);

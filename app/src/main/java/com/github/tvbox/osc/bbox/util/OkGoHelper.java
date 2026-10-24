@@ -326,6 +326,7 @@ public class OkGoHelper {
         Picasso picasso = new Picasso.Builder(App.getInstance())
                 .downloader(downloader)
                 .defaultBitmapConfig(Bitmap.Config.RGB_565)
+                .addRequestHandler(new DownsampleRequestHandler(client, 640))
                 .build();
         Picasso.setSingletonInstance(picasso);
     }

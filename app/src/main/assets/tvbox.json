@@ -18,6 +18,15 @@
    "searchable": 1,
    "quickSearch": 1,
    "filterable": 1
+  },
+  {
+   "key": "baofeng",
+   "name": "暴风资源",
+   "type": 1,
+   "api": "http://by.bfzyapi.com/api.php/provide/vod",
+   "searchable": 1,
+   "quickSearch": 1,
+   "filterable": 1
   }
  ],
  "parses": [

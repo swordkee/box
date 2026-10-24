@@ -129,7 +129,7 @@ public class App extends MultiDexApplication {
         initBundledConfig();
 
         putDefault(HawkConfig.DEBUG_OPEN, false);
-        putDefault(HawkConfig.PLAY_TYPE, 1);
+        putDefault(HawkConfig.PLAY_TYPE, 0); //API15 无 MediaCodec，默认系统硬解（ijk 软解高码率必卡+音画不同步）
         putDefault(HawkConfig.HOME_REC, 1);
         // 默认渲染方式：推荐手机使用0-texture，电视1-surface
         putDefault(HawkConfig.PLAY_RENDER, 1);
