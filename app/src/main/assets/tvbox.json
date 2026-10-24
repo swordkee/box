@@ -306,7 +306,7 @@
      ]
     }
    ],
-   "playerType": 1
+   "playerType": 0
   },
   {
    "group": "国内IPTV",
@@ -498,7 +498,7 @@
      ]
     }
    ],
-   "playerType": 1
+   "playerType": 0
   },
   {
    "group": "其他",
@@ -624,7 +624,7 @@
      ]
     }
    ],
-   "playerType": 1
+   "playerType": 0
   }
  ],
  "flags": [

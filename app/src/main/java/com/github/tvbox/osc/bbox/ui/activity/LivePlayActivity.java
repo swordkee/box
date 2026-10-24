@@ -101,6 +101,7 @@ public class LivePlayActivity extends BaseActivity {
     private int currentLiveChangeSourceTimes = 0;
     private LiveChannelItem currentLiveChannelItem = null;
     private LivePlayerManager livePlayerManager = new LivePlayerManager();
+    private boolean liveSoftFallbackDone = false; //当前频道是否已回退过软解
     private ArrayList<Integer> channelGroupPasswordConfirmed = new ArrayList<>();
 
     //EPG   by 龍
@@ -1001,6 +1002,12 @@ public class LivePlayActivity extends BaseActivity {
         }
         if(mVideoView!=null)mVideoView.release();
         if (!changeSource) {
+            //换台时恢复硬解优先（若上一频道曾回退过软解）
+            if (liveSoftFallbackDone) {
+                liveSoftFallbackDone = false;
+                com.orhanobut.hawk.Hawk.put(HawkConfig.LIVE_PLAY_TYPE, 0);
+                livePlayerManager.init(mVideoView);
+            }
             currentChannelGroupIndex = channelGroupIndex;
             currentLiveChannelIndex = liveChannelIndex;
             currentLiveChannelItem = getLiveChannels(currentChannelGroupIndex).get(currentLiveChannelIndex);
@@ -1543,6 +1550,16 @@ public class LivePlayActivity extends BaseActivity {
             currentLiveChangeSourceTimes++;
             if (currentLiveChannelItem.getSourceNum() == currentLiveChangeSourceTimes) {
                 currentLiveChangeSourceTimes = 0;
+                // NOTE(2026-10-24 API15 port): 硬解(系统播放器)全部备选源失败 -> 回退 ijk 软解重试本频道一次
+                Object livePt = com.orhanobut.hawk.Hawk.get(HawkConfig.LIVE_PLAY_TYPE, 0);
+                if (!liveSoftFallbackDone && String.valueOf(livePt).equals("0")) {
+                    liveSoftFallbackDone = true;
+                    com.orhanobut.hawk.Hawk.put(HawkConfig.LIVE_PLAY_TYPE, 1);
+                    livePlayerManager.init(mVideoView);
+                    playChannel(currentChannelGroupIndex, currentLiveChannelIndex, true);
+                    return;
+                }
+                liveSoftFallbackDone = false;
                 Integer[] groupChannelIndex = getNextChannel(Hawk.get(HawkConfig.LIVE_CHANNEL_REVERSE, false) ? -1 : 1);
                 playChannel(groupChannelIndex[0], groupChannelIndex[1], false);
             } else {
