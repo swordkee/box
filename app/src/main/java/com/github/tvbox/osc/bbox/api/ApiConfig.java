@@ -204,9 +204,12 @@ public class ApiConfig {
         return configUrl;
     }
     public void loadConfig(boolean useCache, LoadConfigCallback callback, Activity activity) {
-        String apiUrl = Hawk.get(HawkConfig.API_URL, "");
+        // NOTE(2026-10-24 API15 port): default to the bundled local config pushed at /sdcard/tvbox.json
+        // so the app self-configures on first launch (no remote/server dependency).
+        String apiUrl = Hawk.get(HawkConfig.API_URL, "file://tvbox.json");
         //独立加载直播配置
         String liveApiUrl = Hawk.get(HawkConfig.LIVE_URL, "");
+        LOG.i("echo-loadConfig-entry api=[" + apiUrl + "] live=[" + liveApiUrl + "] useCache=" + useCache);
         String liveApiConfigUrl=configUrl(liveApiUrl);
         if(!liveApiUrl.isEmpty() && !liveApiUrl.equals(apiUrl)){
             if(liveApiUrl.contains(".txt") || liveApiUrl.contains(".m3u") || liveApiUrl.contains("=txt") || liveApiUrl.contains("=m3u")){
@@ -278,6 +281,7 @@ public class ApiConfig {
             return;
         }
         File cache = new File(App.getInstance().getFilesDir().getAbsolutePath() + "/" + MD5.encode(apiUrl));
+        LOG.i("echo-loadConfig-cache useCache=" + useCache + " exists=" + cache.exists() + " path=" + cache.getName());
         if (useCache && cache.exists()) {
             try {
                 parseJson(apiUrl, cache);
@@ -292,6 +296,7 @@ public class ApiConfig {
         File configUrlFile = new File(App.getInstance().getFilesDir().getAbsolutePath() + "/config_url");
         FileUtils.saveCache(configUrlFile,configUrl);
 
+        LOG.i("echo-loadConfig-fetch " + configUrl);
         OkGo.<String>get(configUrl)
                 .headers("User-Agent", userAgent)
                 .headers("Accept", requestAccept)
@@ -300,6 +305,7 @@ public class ApiConfig {
                     public void onSuccess(Response<String> response) {
                         try {
                             String json = response.body();
+                            LOG.i("echo-loadConfig-fetched len=" + (json == null ? -1 : json.length()));
                             // LOG.i(json);
                             parseJson(apiUrl, json);
                             FileUtils.saveCache(cache,json);
@@ -969,6 +975,7 @@ public class ApiConfig {
         int channelIndex = 0;
         int channelNum = 0;
         for (JsonElement groupElement : livesArray) {
+            if (!groupElement.isJsonObject() || !((JsonObject) groupElement).has("channels")) continue; //混合配置跳过非内嵌组
             LiveChannelGroup liveChannelGroup = new LiveChannelGroup();
             liveChannelGroup.setLiveChannels(new ArrayList<LiveChannelItem>());
             liveChannelGroup.setGroupIndex(groupIndex++);
@@ -1054,19 +1061,29 @@ public class ApiConfig {
         @SuppressLint("SimpleDateFormat") SimpleDateFormat timeFormat = new SimpleDateFormat("yyyy-MM-dd");
         timeFormat.setTimeZone(TimeZone.getTimeZone("GMT+8:00"));
         String epgUrl = Hawk.get(HawkConfig.EPG_URL,"");
+        if(epgUrl.isEmpty()){ callback.error(-1, "epg empty"); return; } //无EPG源短路，不拼无效URL发请求
         String url;
         if(epgUrl.contains("{name}") && epgUrl.contains("{date}")){
             url= epgUrl.replace("{name}", URLEncoder.encode(name)).replace("{date}",timeFormat.format(date));
         }else {
             url= epgUrl + "?ch="+ URLEncoder.encode(name) + "&date=" + timeFormat.format(date);
         }
-        UrlHttpUtil.get(url, new CallBackUtil.CallBackString() {
-            public void onFailure(int i, String str) {
-                callback.error(i, str);
+        // NOTE(2026-10-24 API15 port): UrlHttpUtil 走系统 HttpsURLConnection（TLS1.0-only），改走 OkGo(BC TLS 栈)
+        OkGo.<String>get(url).tag("epg").execute(new com.lzy.okgo.callback.AbsCallback<String>() {
+            @Override
+            public String convertResponse(okhttp3.Response response) throws Throwable {
+                return response.body() == null ? "" : response.body().string();
             }
 
-            public void onResponse(String paramString) {
-                callback.success(paramString);
+            @Override
+            public void onSuccess(com.lzy.okgo.model.Response<String> response) {
+                callback.success(response.body());
+            }
+
+            @Override
+            public void onError(com.lzy.okgo.model.Response<String> response) {
+                super.onError(response);
+                callback.error(response.code(), response.message());
             }
         });
     }
@@ -1093,6 +1110,14 @@ public class ApiConfig {
                     extUrlFix = Base64.encodeToString(extUrlFix.getBytes("UTF-8"), Base64.DEFAULT | Base64.URL_SAFE | Base64.NO_WRAP);
                     url = url.replace(extUrl, extUrlFix);
                 }
+            } else if (livesOBJ.has("channels")) {
+                //内嵌频道（{group,channels:[{name,urls}]} 形态）：直接解析，不经 proxy
+                LOG.i("echo-loadLiveApi-embedded");
+                loadLives(Hawk.get(HawkConfig.LIVE_GROUP_LIST, new JsonArray()));
+                Hawk.put(HawkConfig.EPG_URL, livesOBJ.has("epg")?livesOBJ.get("epg").getAsString():"");
+                Hawk.put(HawkConfig.LIVE_PLAY_TYPE, Hawk.get(HawkConfig.PLAY_TYPE, 0));
+                Hawk.put(HawkConfig.LIVE_WEB_HEADER, null);
+                return;
             } else {
                 String type= livesOBJ.get("type").getAsString();
                 if(type.equals("0") || type.equals("3")){

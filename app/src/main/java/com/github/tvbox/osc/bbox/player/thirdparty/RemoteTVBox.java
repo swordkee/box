@@ -22,6 +22,7 @@ import okhttp3.FormBody;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
+import com.github.tvbox.osc.bbox.util.OkGoHelper;
 
 public class RemoteTVBox {
 
@@ -126,7 +127,7 @@ public class RemoteTVBox {
     }
 
     public static void post(String url, Map<String, String> params, okhttp3.Callback callback) {
-        OkHttpClient.Builder builder = new OkHttpClient.Builder();
+        OkHttpClient.Builder builder = OkGoHelper.newBcClient();
         builder.readTimeout(1000, TimeUnit.MILLISECONDS);
         builder.writeTimeout(1000, TimeUnit.MILLISECONDS);
         builder.connectTimeout(1000, TimeUnit.MILLISECONDS);

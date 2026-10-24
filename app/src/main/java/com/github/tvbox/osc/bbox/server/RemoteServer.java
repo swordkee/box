@@ -165,6 +165,14 @@ public class RemoteServer extends NanoHTTPD {
                                 return NanoHTTPD.newFixedLengthResponse(NanoHTTPD.Response.Status.OK, NanoHTTPD.MIME_PLAINTEXT, fileList(root, f));
                             }
                         } else {
+                            // NOTE(2026-10-24 API15 port): /mnt/sdcard 被电视重启清空，文件缺失时回退到
+                            // app 私有目录的同名备份，保证重启后仍能自主加载内置配置
+                            if (!f.contains("/")) {
+                                File backup = new File(App.getInstance().getFilesDir(), f);
+                                if (backup.exists() && backup.isFile()) {
+                                    return NanoHTTPD.newChunkedResponse(NanoHTTPD.Response.Status.OK, "application/octet-stream", new FileInputStream(backup));
+                                }
+                            }
                             return NanoHTTPD.newFixedLengthResponse(NanoHTTPD.Response.Status.INTERNAL_ERROR, NanoHTTPD.MIME_PLAINTEXT, "File " + file + " not found!");
                         }
                     } catch (Throwable th) {

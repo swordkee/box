@@ -1,61 +1,35 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
+// NOTE(2026-10-24 API15 port): repo order rewritten for CN offline build — aliyun first,
+// dropped unreachable hosts (storage.googleapis.com r8-releases, chaquo.com, crosswalk mirrors).
 buildscript {
     repositories {
         mavenLocal()
+        maven { url 'https://maven.aliyun.com/repository/google' }
+        maven { url 'https://maven.aliyun.com/repository/public' }
+        maven { url 'https://maven.aliyun.com/repository/jcenter' }
+        maven { url 'https://maven.aliyun.com/repository/releases' }
         mavenCentral()
         gradlePluginPortal()
-//        google()
-//        jcenter()
-        maven {
-            url 'https://maven.aliyun.com/repository/google'
-        }
-        maven {
-            url 'https://maven.aliyun.com/repository/public'
-        }
-        maven {
-            url 'https://maven.aliyun.com/repository/jcenter'
-        }
-        maven { url "https://jitpack.io" }
-//        maven { url 'https://download.01.org/crosswalk/releases/crosswalk/android/maven2' }
-        maven { url 'https://o0halflife0o.github.io/crosswalk/releases/crosswalk/android/maven2' }
-        maven { url 'http://home.jundie.top:81/xwalk/maven2'; allowInsecureProtocol = true }
-//        maven { url 'http://9xi4o.tk/maven2' }
-        maven { url "https://maven.aliyun.com/repository/releases" }
-        maven { url "https://storage.googleapis.com/r8-releases/raw" }
-        maven { url "https://chaquo.com/maven" }
+        maven { url 'https://jitpack.io' }
     }
     dependencies {
         classpath "com.android.tools.build:gradle:4.2.2"
 
-        // NOTE: Do not place your application dependencies here; they belong
+        // NOTE: Do not place your application dependencies here — they belong
         // in the individual module build.gradle files
     }
 }
 
 allprojects {
     repositories {
+        mavenLocal()
+        maven { url 'https://maven.aliyun.com/repository/google' }
+        maven { url 'https://maven.aliyun.com/repository/public' }
+        maven { url 'https://maven.aliyun.com/repository/jcenter' }
+        maven { url 'https://maven.aliyun.com/repository/releases' }
         mavenCentral()
         gradlePluginPortal()
-//        google()
-//        jcenter()
-        maven {
-            url 'https://maven.aliyun.com/repository/google'
-        }
-        maven {
-            url 'https://maven.aliyun.com/repository/public'
-        }
-        maven {
-            url 'https://maven.aliyun.com/repository/jcenter'
-        }
-        maven { url "https://jitpack.io" }
-//        maven { url 'https://download.01.org/crosswalk/releases/crosswalk/android/maven2' }
-        maven { url 'https://o0halflife0o.github.io/crosswalk/releases/crosswalk/android/maven2' }
-        maven { url 'http://9xi4o.tk/maven2' }
-//        maven { url 'http://home.jundie.top:81/xwalk/maven2'; allowInsecureProtocol = true }
-
-        maven { url "https://maven.aliyun.com/repository/releases" }
-        maven { url "https://storage.googleapis.com/r8-releases/raw" }
-        maven { url "https://chaquo.com/maven" }
+        maven { url 'https://jitpack.io' }
     }
 }
 

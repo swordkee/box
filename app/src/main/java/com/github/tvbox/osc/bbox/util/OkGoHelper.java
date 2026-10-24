@@ -6,6 +6,7 @@ import androidx.annotation.NonNull;
 
 import com.github.tvbox.osc.bbox.api.ApiConfig;
 import com.github.tvbox.osc.bbox.base.App;
+import com.github.tvbox.osc.bbox.util.BcTls;
 import com.github.tvbox.osc.bbox.util.HawkConfig;
 import com.github.tvbox.osc.bbox.util.SSL.SSLSocketFactoryCompat;
 import com.github.tvbox.osc.bbox.picasso.MyOkhttpDownLoader;
@@ -329,7 +330,14 @@ public class OkGoHelper {
         Picasso.setSingletonInstance(picasso);
     }
 
-    private static synchronized void setOkHttpSsl(OkHttpClient.Builder builder) {
+    /** 预注入 BC TLS 栈的客户端构建器（API15 系统 JSSE 无 TLS1.2） */
+    public static OkHttpClient.Builder newBcClient() {
+        OkHttpClient.Builder b = new OkHttpClient.Builder();
+        setOkHttpSsl(b);
+        return b;
+    }
+
+    public static synchronized void setOkHttpSsl(OkHttpClient.Builder builder) {
         try {
             // 自定义一个信任所有证书的TrustManager，添加SSLSocketFactory的时候要用到
             final X509TrustManager trustAllCert =
@@ -347,8 +355,12 @@ public class OkGoHelper {
                             return new java.security.cert.X509Certificate[]{};
                         }
                     };
-            final SSLSocketFactory sslSocketFactory = new SSLSocketFactoryCompat(trustAllCert);
-            builder.sslSocketFactory(sslSocketFactory, trustAllCert);
+            // NOTE(2026-10-24 API15 port): 系统JSSE只有TLS1.0，换 BouncyCastle 轻量 TLS 栈支持 TLS1.2/1.3
+            if (BcTls.available()) {
+                builder.sslSocketFactory(BcTls.factory(), trustAllCert);
+            } else {
+                builder.sslSocketFactory(new SSLSocketFactoryCompat(trustAllCert), trustAllCert);
+            }
             builder.hostnameVerifier(HttpsUtils.UnSafeHostnameVerifier);
         } catch (Exception e) {
             throw new RuntimeException(e);

@@ -40,6 +40,7 @@ public class PlayerHelper {
             e.printStackTrace();
         }
         if(forcePlayerType>=0)playerType = forcePlayerType;
+        if (android.os.Build.VERSION.SDK_INT < 16 && playerType == 2) playerType = 1; // Exo needs API16; fall back to ijk
         IJKCode codec = ApiConfig.get().getIJKCodec(ijkCode);
         PlayerFactory playerFactory;
         if (playerType == 1) {
@@ -87,6 +88,7 @@ public class PlayerHelper {
 
     public static void updateCfg(VideoView videoView) {
         int playType = Hawk.get(HawkConfig.PLAY_TYPE, 0);
+        if (android.os.Build.VERSION.SDK_INT < 16 && playType == 2) playType = 1; // Exo needs API16; fall back to ijk
         PlayerFactory playerFactory;
         if (playType == 1) {
             playerFactory = new PlayerFactory<IjkMediaPlayer>() {

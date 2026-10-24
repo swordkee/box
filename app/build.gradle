@@ -31,7 +31,7 @@ android {
 
     defaultConfig {
         applicationId 'tv.org.eu.bunnyabc'
-        minSdkVersion 16
+        minSdkVersion 15
         //noinspection ExpiredTargetSdkVersion
         targetSdkVersion 26
         versionCode 27
@@ -62,6 +62,7 @@ android {
         release {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             minifyEnabled true
+            signingConfig signingConfigs.sigin
 
             ndk {
                 abiFilters 'armeabi-v7a'
@@ -105,13 +106,18 @@ task DEBUG_APP(type: Exec) {
 }
 
 dependencies {
+    // NOTE(2026-10-24 API15 port): BouncyCastle 轻量 TLS 栈（TLS1.2/1.3，不依赖平台 JCA）
+    implementation 'org.bouncycastle:bcprov-jdk15to18:1.78.1'
+    implementation 'org.bouncycastle:bctls-jdk15to18:1.78.1'
+    implementation 'org.bouncycastle:bcutil-jdk15to18:1.78.1'
+    implementation 'org.bouncycastle:bcpkix-jdk15to18:1.78.1'
+
     api fileTree(dir: "libs", include: ["*.jar","*.aar"])
 
 //    implementation 'com.github.xuexiangjys:XUpdate:2.1.2' // 版本更新
 //     for WebDAV
 //    implementation('com.github.thegrizzlylabs:sardine-android:0.8')
 //    {
-//        exclude group: 'com.squareup.okhttp3'
 //    }
 
     implementation 'com.github.alidili:FlowLayout:v1.5'
@@ -127,6 +133,7 @@ dependencies {
     //implementation files('libs/xupdate-lib-release.aar')
 
     implementation 'com.squareup.okhttp3:okhttp:3.12.11'
+    implementation 'org.conscrypt:conscrypt-android:2.5.2'
     annotationProcessor 'androidx.room:room-compiler:2.3.0'
     implementation 'androidx.room:room-runtime:2.3.0'
     implementation 'androidx.multidex:multidex:2.0.1'
@@ -157,10 +164,6 @@ dependencies {
     implementation 'com.github.hedzr:android-file-chooser:v1.2.0-final'
     implementation 'commons-io:commons-io:2.11.0'
     implementation 'com.googlecode.juniversalchardet:juniversalchardet:1.0.3'
-    //支持http3
-    implementation ('com.google.net.cronet:cronet-okhttp:0.1.0')
-//    implementation 'com.google.android.gms:play-services-cronet:18.0.1'
-    implementation ('org.chromium.net:cronet-embedded:101.4951.41')
     implementation 'org.brotli:dec:0.1.2'
 
 }

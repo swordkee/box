@@ -230,3 +230,13 @@
     <methods>;
 }
 
+
+#############################################
+#
+# NOTE(2026-10-24 API15 port): BouncyCastle 轻量 TLS 栈（BcTls）
+#
+#############################################
+-keep class org.bouncycastle.** { *; }
+-dontwarn org.bouncycastle.**
+-keep class com.github.tvbox.osc.bbox.util.BcTls$* { *; }
+-keep class com.github.tvbox.osc.bbox.util.BcTls { *; }

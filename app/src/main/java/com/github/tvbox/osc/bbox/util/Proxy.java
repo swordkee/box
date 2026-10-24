@@ -13,6 +13,7 @@ import java.util.Map;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
+import com.github.tvbox.osc.bbox.util.OkGoHelper;
 
 public class Proxy {
 
@@ -168,7 +169,7 @@ public class Proxy {
     }
 
     public static String getRedirectedUrl(String url) throws IOException {
-        OkHttpClient client = new OkHttpClient.Builder()
+        OkHttpClient client = OkGoHelper.newBcClient()
                 .followRedirects(false) // 不自动跟随重定向
                 .build();
 

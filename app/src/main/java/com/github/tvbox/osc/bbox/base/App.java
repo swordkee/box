@@ -23,6 +23,7 @@ import me.jessyan.autosize.AutoSizeConfig;
 import me.jessyan.autosize.unit.Subunits;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 
 import static com.xuexiang.xupdate.entity.UpdateError.ERROR.CHECK_NO_NEW_VERSION;
@@ -44,6 +45,10 @@ public class App extends MultiDexApplication {
     @Override
     public void onCreate() {
         super.onCreate();
+        // NOTE(API15 port): do NOT insert Conscrypt here — this SoC (MT5880, Cortex-A9) has NO NEON,
+        // conscrypt's BoringSSL armeabi-v7a build SIGILLs in SSL_CTX_new (tombstone evidence 2026-10-24).
+        // TLS1.2 availability is the system JSSE's call; SSLSocketFactoryCompat already enables
+        // every supported non-SSL protocol per socket.
         instance = this;
         initParams();
         // OKGo
@@ -121,6 +126,8 @@ public class App extends MultiDexApplication {
         // Hawk
         Hawk.init(this).build();
 
+        initBundledConfig();
+
         putDefault(HawkConfig.DEBUG_OPEN, false);
         putDefault(HawkConfig.PLAY_TYPE, 1);
         putDefault(HawkConfig.HOME_REC, 1);
@@ -135,6 +142,32 @@ public class App extends MultiDexApplication {
         // 默认显示时间
         putDefault(HawkConfig.LIVE_SHOW_TIME, true);
         putDefaultApis();
+
+        // NOTE(2026-10-24 API15 port): 预置多仓订阅子源到配置切换列表（设置->配置）
+        try {
+            HashMap<String, String> apiMap = Hawk.get(HawkConfig.API_MAP, new HashMap<String, String>());
+            ArrayList<String> apiNameHistory = Hawk.get(HawkConfig.API_NAME_HISTORY, new ArrayList<String>());
+            String[][] sources = {
+                    {"本地内置", "file://tvbox.json"},
+                    {"肥猫", "https://gh-proxy.org/https://raw.githubusercontent.com/Lightconer/tvbox-ysc-config/main/output/feimao.json"},
+                    {"王二小", "https://gh-proxy.org/https://raw.githubusercontent.com/Lightconer/tvbox-ysc-config/main/output/wangerxiao.json"},
+                    {"老刘备", "https://gh-proxy.org/https://raw.githubusercontent.com/Lightconer/tvbox-ysc-config/main/output/laoliubei.json"},
+                    {"小马", "https://gh-proxy.org/https://raw.githubusercontent.com/Lightconer/tvbox-ysc-config/main/output/xiaoma.json"},
+                    {"认歌", "https://gh-proxy.org/https://raw.githubusercontent.com/Lightconer/tvbox-ysc-config/main/output/ouge.json"},
+                    {"4K小盒子", "https://gh-proxy.org/https://raw.githubusercontent.com/Lightconer/tvbox-ysc-config/main/output/4k.json"},
+                    {"小盒子单仓", "https://gh-proxy.org/https://raw.githubusercontent.com/Lightconer/tvbox-ysc-config/main/output/xiaohezi.json"},
+                    {"拾光多仓", "https://gh-proxy.org/https://raw.githubusercontent.com/Lightconer/tvbox-ysc-config/main/output/shiguang.json"},
+                    {"挺好多仓", "https://gh-proxy.org/https://raw.githubusercontent.com/Lightconer/tvbox-ysc-config/main/output/tinghao.json"},
+            };
+            for (String[] e : sources) {
+                if (!apiMap.containsKey(e[0])) apiMap.put(e[0], e[1]);
+                if (!apiNameHistory.contains(e[0])) apiNameHistory.add(e[0]);
+            }
+            Hawk.put(HawkConfig.API_MAP, apiMap);
+            Hawk.put(HawkConfig.API_NAME_HISTORY, apiNameHistory);
+        } catch (Throwable th) {
+            LOG.e("seed api map: " + th);
+        }
 
         /*
         if (Hawk.contains(HawkConfig.AVAILABLE_PROXY_URL)) {
@@ -183,7 +216,7 @@ public class App extends MultiDexApplication {
         epgHistory.add("https://epg.112114.xyz?ch={name}&date={date}");
         epgHistory.add("https://epg.51zmt.top:8001/?ch={name}&date={date}");
         // 默认epg
-        String defaultEpgUrl = "https://epg.51zmt.top:8001?ch={name}&date={date}";
+        String defaultEpgUrl = "https://epg.51zmt.top:8001?ch={name}&date={date}"; //BC TLS 栈接管后恢复 https EPG
 
 
         // 不添加默认线路
@@ -212,6 +245,24 @@ public class App extends MultiDexApplication {
     private void putDefault(String key, Object value) {
         if (!Hawk.contains(key)) {
             Hawk.put(key, value);
+        }
+    }
+
+    // NOTE(2026-10-24 API15 port): 内置配置——把 asset 中的 tvbox.json 释放到私有目录，
+    // 配合 RemoteServer /file/ 的 filesDir 回退，电视重启清空 /mnt/sdcard 后仍能自主加载
+    private void initBundledConfig() {
+        try {
+            java.io.InputStream is = getAssets().open("tvbox.json");
+            java.io.File dst = new java.io.File(getFilesDir(), "tvbox.json");
+            java.io.FileOutputStream fos = new java.io.FileOutputStream(dst, false);
+            byte[] tmp = new byte[8192];
+            int n;
+            while ((n = is.read(tmp)) != -1) fos.write(tmp, 0, n);
+            fos.close();
+            is.close();
+            LOG.i("echo-bundled-config released");
+        } catch (Throwable th) {
+            LOG.i("echo-bundled-config failed " + th);
         }
     }
 

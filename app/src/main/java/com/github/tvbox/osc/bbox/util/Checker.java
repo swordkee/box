@@ -8,6 +8,7 @@ import okhttp3.OkHttpClient;
 
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
+import com.github.tvbox.osc.bbox.util.OkGoHelper;
 
 public class Checker {
 
@@ -43,7 +44,7 @@ public class Checker {
     public void checkProxy(OnProxyAvailableListener onProxyAvailableListener) {
 
         if (mClient == null) {
-            mClient = new OkHttpClient.Builder()
+            mClient = OkGoHelper.newBcClient()
                     .connectTimeout(5, TimeUnit.SECONDS)
                     .readTimeout(5, TimeUnit.SECONDS)
                     .writeTimeout(5, TimeUnit.SECONDS)
@@ -80,7 +81,7 @@ public class Checker {
     public void checkProxy(OnProxyAvailableListener onProxyAvailableListener, String url) {
 
         if (mClient == null) {
-            mClient = new OkHttpClient.Builder()
+            mClient = OkGoHelper.newBcClient()
                     .connectTimeout(5, TimeUnit.SECONDS)
                     .readTimeout(5, TimeUnit.SECONDS)
                     .writeTimeout(5, TimeUnit.SECONDS)
@@ -119,7 +120,7 @@ public class Checker {
         LOG.i("从sd卡的urls.txt获取带分隔符的链接字符串");
 
         if (mClient == null) {
-            mClient = new OkHttpClient.Builder()
+            mClient = OkGoHelper.newBcClient()
                     .connectTimeout(5, TimeUnit.SECONDS)
                     .readTimeout(5, TimeUnit.SECONDS)
                     .writeTimeout(5, TimeUnit.SECONDS)

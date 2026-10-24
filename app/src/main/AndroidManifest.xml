@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
    package="com.github.tvbox.osc.bbox">
+    <uses-sdk tools:overrideLibrary="androidx.appcompat,androidx.core,androidx.fragment,com.google.android.exoplayer2.common,com.google.android.exoplayer2.core,com.google.android.exoplayer2.ext.okhttp,com.google.android.exoplayer2.ext.rtmp,com.google.android.exoplayer2.extractor,com.google.android.exoplayer2.source.dash,com.google.android.exoplayer2.source.hls,com.google.android.exoplayer2.source.rtsp,com.google.android.exoplayer2.ui,com.kingja.loadsir,org.xwalk.core,xyz.doikki.videocontroller" />
     <uses-feature
        android:name="android.software.leanback"
        android:required="false" />
