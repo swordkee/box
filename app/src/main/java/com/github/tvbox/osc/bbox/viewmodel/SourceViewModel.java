@@ -29,6 +29,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.reflect.TypeToken;
 import com.lzy.okgo.OkGo;
+import com.github.tvbox.osc.bbox.util.ContentFilter;
 import com.lzy.okgo.callback.AbsCallback;
 import com.lzy.okgo.model.Response;
 import com.lzy.okgo.request.GetRequest;
@@ -955,6 +956,7 @@ public class SourceViewModel extends ViewModel {
             AbsSortJson sortJson = gson.fromJson(obj, new TypeToken<AbsSortJson>() {
             }.getType());
             AbsSortXml data = sortJson.toAbsSortXml();
+            ContentFilter.apply(data);
             try {
                 if (obj.has("filters")) {
                     LinkedHashMap<String, ArrayList<MovieSort.SortFilter>> sortFilters = new LinkedHashMap<>();
@@ -993,6 +995,7 @@ public class SourceViewModel extends ViewModel {
             xstream.processAnnotations(AbsSortXml.class);
             xstream.ignoreUnknownElements();
             AbsSortXml data = (AbsSortXml) xstream.fromXML(xml);
+            ContentFilter.apply(data);
             for (MovieSort.SortData sort : data.classes.sortList) {
                 if (sort.filters == null) {
                     sort.filters = new ArrayList<>();
@@ -1263,6 +1266,7 @@ public class SourceViewModel extends ViewModel {
             }
             AbsXml data = (AbsXml) xstream.fromXML(xml);
             absXml(data, sourceKey);
+            ContentFilter.apply(data);
             if (searchResult == result) {
                 // LOG.d("function: private AbsXml xml(MutableLiveData<AbsXml> result, String xml, String sourceKey)");
                 EventBus.getDefault().post(new RefreshEvent(RefreshEvent.TYPE_SEARCH_RESULT, data));
@@ -1328,6 +1332,7 @@ public class SourceViewModel extends ViewModel {
                 }
             }
             absXml(data, sourceKey);
+            ContentFilter.apply(data);
             if (searchResult == result) {
                 // LOG.d("function: private AbsXml json(MutableLiveData<AbsXml> result, String json, String sourceKey)"+data);
                 EventBus.getDefault().post(new RefreshEvent(RefreshEvent.TYPE_SEARCH_RESULT, data));

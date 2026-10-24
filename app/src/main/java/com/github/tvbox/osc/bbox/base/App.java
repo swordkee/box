@@ -127,6 +127,35 @@ public class App extends MultiDexApplication {
         Hawk.init(this).build();
 
         initBundledConfig();
+        // NOTE(2026-10-25 API15 port): 进程内 MITM 代理 —— jar 聚合源 https 解封
+        // 仅影响本进程（ProxySelector 进程属性），银河/腾讯等其他应用不受影响
+        try {
+            MitmCertManager.init(this);
+            if (MitmProxy.start() && MitmCertManager.caExportFile() != null) {
+                java.net.ProxySelector.setDefault(new java.net.ProxySelector() {
+                    private final java.util.List<java.net.Proxy> mitm =
+                            java.util.Collections.singletonList(new java.net.Proxy(java.net.Proxy.Type.HTTP,
+                                    java.net.InetSocketAddress.createUnresolved("127.0.0.1", 8888)));
+                    private final java.util.List<java.net.Proxy> direct =
+                            java.util.Collections.singletonList(java.net.Proxy.NO_PROXY);
+
+                    @Override
+                    public java.util.List<java.net.Proxy> select(java.net.URI uri) {
+                        String host = uri == null ? "" : uri.getHost();
+                        if (host != null && (host.equals("127.0.0.1") || host.equals("localhost")))
+                            return direct;
+                        return mitm;
+                    }
+
+                    @Override
+                    public void connectFailed(java.net.URI uri, java.net.SocketAddress sa, java.io.IOException ioe) {
+                    }
+                });
+                LOG.i("echo-mitm-proxy-wired");
+            }
+        } catch (Throwable th) {
+            LOG.e("echo-mitm-init-failed " + th);
+        }
 
         putDefault(HawkConfig.DEBUG_OPEN, false);
         putDefault(HawkConfig.PLAY_TYPE, 1); //资源站 VOD 流均为 https，系统播放器 TLS1.0 拉不到清单，只有 ijk(自带 TLS1.2) 能播
@@ -149,15 +178,15 @@ public class App extends MultiDexApplication {
             ArrayList<String> apiNameHistory = Hawk.get(HawkConfig.API_NAME_HISTORY, new ArrayList<String>());
             String[][] sources = {
                     {"本地内置", "file://tvbox.json"},
-                    {"肥猫", "https://gh-proxy.org/https://raw.githubusercontent.com/Lightconer/tvbox-ysc-config/main/output/feimao.json"},
-                    {"王二小", "https://gh-proxy.org/https://raw.githubusercontent.com/Lightconer/tvbox-ysc-config/main/output/wangerxiao.json"},
-                    {"老刘备", "https://gh-proxy.org/https://raw.githubusercontent.com/Lightconer/tvbox-ysc-config/main/output/laoliubei.json"},
-                    {"小马", "https://gh-proxy.org/https://raw.githubusercontent.com/Lightconer/tvbox-ysc-config/main/output/xiaoma.json"},
-                    {"认歌", "https://gh-proxy.org/https://raw.githubusercontent.com/Lightconer/tvbox-ysc-config/main/output/ouge.json"},
-                    {"4K小盒子", "https://gh-proxy.org/https://raw.githubusercontent.com/Lightconer/tvbox-ysc-config/main/output/4k.json"},
-                    {"小盒子单仓", "https://gh-proxy.org/https://raw.githubusercontent.com/Lightconer/tvbox-ysc-config/main/output/xiaohezi.json"},
-                    {"拾光多仓", "https://gh-proxy.org/https://raw.githubusercontent.com/Lightconer/tvbox-ysc-config/main/output/shiguang.json"},
-                    {"挺好多仓", "https://gh-proxy.org/https://raw.githubusercontent.com/Lightconer/tvbox-ysc-config/main/output/tinghao.json"},
+                    {"肥猫", "https://raw.githubusercontent.com/Lightconer/tvbox-ysc-config/main/output/feimao.json"},
+                    {"王二小", "https://raw.githubusercontent.com/Lightconer/tvbox-ysc-config/main/output/wangerxiao.json"},
+                    {"老刘备", "https://raw.githubusercontent.com/Lightconer/tvbox-ysc-config/main/output/laoliubei.json"},
+                    {"小马", "https://raw.githubusercontent.com/Lightconer/tvbox-ysc-config/main/output/xiaoma.json"},
+                    {"认歌", "https://raw.githubusercontent.com/Lightconer/tvbox-ysc-config/main/output/ouge.json"},
+                    {"4K小盒子", "https://raw.githubusercontent.com/Lightconer/tvbox-ysc-config/main/output/4k.json"},
+                    {"小盒子单仓", "https://raw.githubusercontent.com/Lightconer/tvbox-ysc-config/main/output/xiaohezi.json"},
+                    {"拾光多仓", "https://raw.githubusercontent.com/Lightconer/tvbox-ysc-config/main/output/shiguang.json"},
+                    {"挺好多仓", "https://raw.githubusercontent.com/Lightconer/tvbox-ysc-config/main/output/tinghao.json"},
             };
             for (String[] e : sources) {
                 if (!apiMap.containsKey(e[0])) apiMap.put(e[0], e[1]);

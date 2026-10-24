@@ -60,6 +60,11 @@ public final class BcTls {
         return sFactory;
     }
 
+    /** MITM 上游专用：直连建立 BC TLS1.2 套接（接受任意证书） */
+    public static Socket socket(String host, int port) throws java.io.IOException {
+        return (Socket) factory().createSocket(host, port);
+    }
+
     public static boolean available() {
         try {
             crypto();
