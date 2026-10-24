@@ -60,10 +60,13 @@ public class MitmCertManager {
                 } else {
                     generate();
                     save(caFile, keyFile);
-                    LOG.i(TAG + ": CA generated, export " + caFile.getAbsolutePath());
+                    LOG.i(TAG + ": CA generated, export " + caFile.getAbsolutePath() + " hash=" + caStoreFileName());
                 }
             } catch (Throwable th) {
                 LOG.e(TAG + " init failed: " + th);
+                java.io.StringWriter sw = new java.io.StringWriter();
+                th.printStackTrace(new java.io.PrintWriter(sw));
+                for (String l : sw.toString().split("\n")) LOG.e("MITMSTACK " + l);
             }
         }
     }
