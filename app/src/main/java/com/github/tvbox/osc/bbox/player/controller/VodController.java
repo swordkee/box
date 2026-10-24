@@ -638,6 +638,20 @@ public class VodController extends BaseController {
 
     }
 
+    // NOTE(2026-10-24 API15 port): 硬解（系统播放器）失败时自动回退 ijk 软解，不弹窗
+    public void autoSwitchToIjk() {
+        try {
+            if (mPlayerConfig.getInt("pl") != 1) {
+                mPlayerConfig.put("pl", 1);
+                updatePlayerCfgView();
+                listener.updatePlayerCfg();
+                listener.replay(false);
+            }
+        } catch (Throwable th) {
+            th.printStackTrace();
+        }
+    }
+
     private void switchPlayer(View view) {
         mHandler.removeCallbacks(myRunnable);
         mHandler.postDelayed(myRunnable, myHandleSeconds);

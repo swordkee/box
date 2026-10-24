@@ -871,8 +871,9 @@ public class PlayActivity extends BaseActivity {
                 //第一次重试直接带着原地址继续播放
                 if(webPlayUrl!=null){
                     if(allowSwitchPlayer){
-                        //切换播放器不占用重试次数
-                        if(mController.switchPlayer())autoRetryCount++;
+                        //硬解失败自动回退 ijk 软解，不弹窗不占用重试次数
+                        mController.autoSwitchToIjk();
+                        autoRetryCount++;
                     }else {
                         autoRetryCount++;
                         allowSwitchPlayer=true;

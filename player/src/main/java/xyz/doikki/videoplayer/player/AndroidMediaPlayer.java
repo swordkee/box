@@ -269,7 +269,8 @@ public class AndroidMediaPlayer extends AbstractPlayer implements MediaPlayer.On
                     return true;
                 }
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
+            // NOTE(2026-10-24 API15 port): 海信 4.0.4 框架无 getTrackInfo，NoSuchMethodError 是 Error 不是 Exception
             return false;
         }
         return false;
