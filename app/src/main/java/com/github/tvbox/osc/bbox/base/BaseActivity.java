@@ -186,8 +186,12 @@ public abstract class BaseActivity extends AppCompatActivity implements CustomAd
     protected static BitmapDrawable globalWp = null;
 
     public void changeWallpaper(boolean force) {
-        if (!force && globalWp != null)
+        // NOTE(2026-10-25): 缓存命中必须直接返回——原逻辑 set 完 drawable 后仍继续 decode，
+        // 每次 onResume 都全量解一张壁纸大图 → 1GB 机器必 OOM（点详情即崩的主因）
+        if (!force && globalWp != null) {
             getWindow().setBackgroundDrawable(globalWp);
+            return;
+        }
         try {
             File wp = new File(getFilesDir().getAbsolutePath() + "/wp");
             if (wp.exists()) {
@@ -209,9 +213,17 @@ public abstract class BaseActivity extends AppCompatActivity implements CustomAd
                     scale = scaleY;
                 }
                 opts.inJustDecodeBounds = false;
-                // 采样率
+                // 采样率（至少 1，按屏幕尺寸自适应）
+                if (scale < 1) scale = 1;
+                int screenW = getResources().getDisplayMetrics().widthPixels;
+                int screenH = getResources().getDisplayMetrics().heightPixels;
+                while (imageWidth / (scale * 2) >= screenW && imageHeight / (scale * 2) >= screenH) {
+                    scale *= 2;
+                }
                 opts.inSampleSize = scale;
-                globalWp = new BitmapDrawable(BitmapFactory.decodeFile(wp.getAbsolutePath(), opts));
+                opts.inPreferredConfig = android.graphics.Bitmap.Config.RGB_565; // 省一半内存
+                globalWp = new BitmapDrawable(getResources(),
+                        BitmapFactory.decodeFile(wp.getAbsolutePath(), opts));
             } else {
                 globalWp = null;
             }
