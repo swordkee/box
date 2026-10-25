@@ -54,6 +54,15 @@
            android:name=".ui.activity.PlayActivity"
            android:configChanges="orientation|screenSize"
            android:screenOrientation="sensorLandscape" />
+        <!-- NOTE(2026-10-25): DLNA MediaRenderer（cling 2.1.2，接收投屏） -->
+        <service
+            android:name=".dlna.DlnaRendererService"
+            android:exported="false" />
+        <activity
+            android:name=".dlna.CastActivity"
+            android:configChanges="orientation|screenSize"
+            android:screenOrientation="sensorLandscape"
+            android:theme="@style/AppTheme.NoActionBar" />
         <activity
            android:name=".ui.activity.PushActivity"
            android:screenOrientation="sensorLandscape" />

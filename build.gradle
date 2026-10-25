@@ -23,6 +23,7 @@ buildscript {
 allprojects {
     repositories {
         mavenLocal()
+        maven { url 'http://4thline.org/m2' } // cling（DLNA）官方仓，构件不在 central/jcenter
         maven { url 'https://maven.aliyun.com/repository/google' }
         maven { url 'https://maven.aliyun.com/repository/public' }
         maven { url 'https://maven.aliyun.com/repository/jcenter' }

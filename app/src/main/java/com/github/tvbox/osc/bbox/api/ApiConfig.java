@@ -349,6 +349,34 @@ public class ApiConfig {
                 });
     }
 
+    /** NOTE(2026-10-25): jar 加载（DexClassLoader/dexopt）是重活，严禁主线程——单线程串行执行 */
+    private static final java.util.concurrent.ExecutorService JAR_EXECUTOR =
+            java.util.concurrent.Executors.newSingleThreadExecutor();
+
+    private void loadJarAsync(final File cache, final String failMsg, final LoadConfigCallback callback) {
+        JAR_EXECUTOR.execute(new Runnable() {
+            @Override
+            public void run() {
+                boolean ok = false;
+                String err = null;
+                try {
+                    ok = jarLoader.load(cache.getAbsolutePath());
+                } catch (final Throwable th) {
+                    err = "JAR加载异常: " + th.getMessage();
+                }
+                final boolean fOk = ok;
+                final String fErr = err;
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (fOk) callback.success();
+                        else callback.error(fErr != null ? fErr : failMsg);
+                    }
+                });
+            }
+        });
+    }
+
     public void loadJar(boolean useCache, String spider, LoadConfigCallback callback) {
         String[] urls = spider.split(";md5;");
         String jarUrl = urls[0];
@@ -357,20 +385,14 @@ public class ApiConfig {
 
         if (!md5.isEmpty() || useCache) {
             if (cache.exists() && (useCache || MD5.getFileMd5(cache).equalsIgnoreCase(md5))) {
-                if (jarLoader.load(cache.getAbsolutePath())) {
-                    callback.success();
-                } else {
-                    callback.error("md5缓存失效");
-                }
+                loadJarAsync(cache, "md5缓存失效", callback);
                 return;
             }
         }else {
             if (Boolean.parseBoolean(jarCache) && cache.exists() && !FileUtils.isWeekAgo(cache)) {
                 LOG.i("echo-load jar jarCache:"+jarUrl);
-                if (jarLoader.load(cache.getAbsolutePath())) {
-                    callback.success();
-                    return;
-                }
+                loadJarAsync(cache, "JAR加载失败", callback);
+                return;
             }
         }
 

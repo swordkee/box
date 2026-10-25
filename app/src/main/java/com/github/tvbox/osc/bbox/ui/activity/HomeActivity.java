@@ -113,6 +113,17 @@ public class HomeActivity extends BaseActivity {
     protected void onCreate(@Nullable @org.jetbrains.annotations.Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         verifyPermissions(this);// 动态申请权限
+        // NOTE(2026-10-25): DLNA MediaRenderer 常驻（接收投屏）——延迟启动避开 jar 首次加载高峰
+        new Handler().postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    startService(new Intent(HomeActivity.this, com.github.tvbox.osc.bbox.dlna.DlnaRendererService.class));
+                } catch (Throwable th) {
+                    com.github.tvbox.osc.bbox.util.LOG.e("DLNA service start: " + th);
+                }
+            }
+        }, 4000);
     }
 
     private static final int REQUEST_EXTERNAL_STORAGE = 1;

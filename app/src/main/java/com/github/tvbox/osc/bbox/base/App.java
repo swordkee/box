@@ -325,6 +325,11 @@ public class App extends MultiDexApplication {
         }
     }
 
+    /** DLNA: AVTransport 动作 → CastActivity（greenrobot EventBus） */
+    public void sendCastMsg(com.github.tvbox.osc.bbox.dlna.DlnaRendererService.CastMsg msg) {
+        org.greenrobot.eventbus.EventBus.getDefault().post(msg);
+    }
+
     public static App getInstance() {
         return instance;
     }
