@@ -237,25 +237,41 @@ public class HomeActivity extends BaseActivity {
             }
 
             public void onItemSelected(TvRecyclerView tvRecyclerView, View view, int position) {
-                if (view != null) {
-                    HomeActivity.this.currentView = view;
-                    HomeActivity.this.isDownOrUp = false;
-                    HomeActivity.this.sortChange = true;
-                    view.animate().scaleX(1.1f).scaleY(1.1f).setInterpolator(new BounceInterpolator()).setDuration(300).start();
-                    TextView textView = view.findViewById(R.id.tvTitle);
+                if (view == null) return;
+                // NOTE(2026-10-26): 边界检查必须在任何动画/状态更新之前——
+                // 之前写在 scaleX(1.1f) 之后提前 return，导致 sortFocused 未更新，
+                // onItemPreSelected 里旧栏目 sortFocused==p 仍成立，旧栏目缩不回 1.0（显示变大且不恢复）
+                if (position < 0) return;
+                HomeActivity.this.currentView = view;
+                HomeActivity.this.isDownOrUp = false;
+                HomeActivity.this.sortChange = true;
+                // 先把旧栏目的缩放显式复位，避免它依赖 sortFocused 判定
+                if (sortFocusView != null && sortFocusView != view) {
+                    sortFocusView.animate().scaleX(1.0f).scaleY(1.0f).setDuration(300).start();
+                    TextView oldTitle = sortFocusView.findViewById(R.id.tvTitle);
+                    if (oldTitle != null) {
+                        oldTitle.getPaint().setFakeBoldText(false);
+                        oldTitle.setTextColor(HomeActivity.this.getResources().getColor(R.color.color_BBFFFFFF));
+                        oldTitle.invalidate();
+                    }
+                }
+                HomeActivity.this.sortFocusView = view;
+                HomeActivity.this.sortFocused = position;
+                view.animate().scaleX(1.1f).scaleY(1.1f).setInterpolator(new BounceInterpolator()).setDuration(300).start();
+                TextView textView = view.findViewById(R.id.tvTitle);
+                if (textView != null) {
                     textView.getPaint().setFakeBoldText(true);
                     textView.setTextColor(HomeActivity.this.getResources().getColor(R.color.color_FFFFFF));
                     textView.invalidate();
-                    if (sortAdapter == null || position >= sortAdapter.getItemCount()) return;
+                }
+                if (sortAdapter != null && position < sortAdapter.getItemCount()) {
                     MovieSort.SortData sortData = sortAdapter.getItem(position);
                     if (sortData != null && sortData.filters != null && !sortData.filters.isEmpty()) {
                         showFilterIcon(sortData.filterSelectCount());
                     }
-                    HomeActivity.this.sortFocusView = view;
-                    HomeActivity.this.sortFocused = position;
-                    mHandler.removeCallbacks(mDataRunnable);
-                    mHandler.postDelayed(mDataRunnable, 200);
                 }
+                mHandler.removeCallbacks(mDataRunnable);
+                mHandler.postDelayed(mDataRunnable, 200);
             }
 
             @Override

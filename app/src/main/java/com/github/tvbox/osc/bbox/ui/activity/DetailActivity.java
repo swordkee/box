@@ -551,7 +551,8 @@ public class DetailActivity extends BaseActivity {
         if (vodInfo != null && !vodInfo.seriesMap.get(vodInfo.playFlag).isEmpty()) {
             preFlag = vodInfo.playFlag;
             //更新播放地址
-            setTextShow(tvPlayUrl, "播放地址：", vodInfo.seriesMap.get(vodInfo.playFlag).get(vodInfo.playIndex).url);
+            VodInfo.VodSeries cur = vodInfo.getCurrentSeries();
+            if (cur != null) setTextShow(tvPlayUrl, "播放地址：", cur.url);
             Bundle bundle = new Bundle();
             //保存历史
             insertVod(firstsourceKey, vodInfo);
@@ -612,7 +613,8 @@ public class DetailActivity extends BaseActivity {
                     break;
                 }
             }
-            if(canSelect)vodInfo.seriesMap.get(vodInfo.playFlag).get(vodInfo.playIndex).selected = true;
+            VodInfo.VodSeries curSel = vodInfo.getCurrentSeries();
+            if (canSelect && curSel != null) curSel.selected = true;
         }
 
         Paint pFont = new Paint();
@@ -792,7 +794,8 @@ public class DetailActivity extends BaseActivity {
                                 flag.selected = false;
                         }
                         //设置播放地址
-                        setTextShow(tvPlayUrl, "播放地址：", vodInfo.seriesMap.get(vodInfo.playFlag).get(0).url);
+                        VodInfo.VodSeries first = vodInfo.getSeriesAt(0);
+                        if (first != null) setTextShow(tvPlayUrl, "播放地址：", first.url);
                         seriesFlagAdapter.setNewData(vodInfo.seriesFlags);
                         mGridViewFlag.scrollToPosition(flagScrollTo);
 
@@ -1126,7 +1129,8 @@ public class DetailActivity extends BaseActivity {
 
     public void use1DMDownload() {
         if (vodInfo != null && vodInfo.seriesMap.get(vodInfo.playFlag).size() > 0){
-            VodInfo.VodSeries vod = vodInfo.seriesMap.get(vodInfo.playFlag).get(vodInfo.playIndex);
+            VodInfo.VodSeries vod = vodInfo.getCurrentSeries();
+            if (vod == null) return;
             String url = TextUtils.isEmpty(playFragment.getFinalUrl())?vod.url:playFragment.getFinalUrl();
             // 创建Intent对象，启动1DM App
             Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));

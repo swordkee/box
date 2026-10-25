@@ -22,6 +22,8 @@ import java.util.List;
 public class EpgUtil {
 
     private static JsonObject epgDoc = null;
+    // NOTE(2026-10-26): 加上限——EPG 站点名可能产生大量变体 key，超过 2000 条时清空重建
+    private static final int EPG_CACHE_LIMIT = 2000;
     private static HashMap<String, JsonObject> epgHashMap = new HashMap<>();
 
     public static void init() {

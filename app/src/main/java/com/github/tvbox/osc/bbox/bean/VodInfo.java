@@ -121,6 +121,30 @@ public class VodInfo implements Serializable {
         return false;
     }
 
+    /** NOTE(2026-10-26): 安全访问当前线路的剧集列表（seriesMap 或 playFlag 可能失效） */
+    public java.util.List<VodSeries> getPlaySeries() {
+        try {
+            if (seriesMap == null || playFlag == null) return null;
+            return seriesMap.get(playFlag);
+        } catch (Throwable th) {
+            return null;
+        }
+    }
+
+    /** 安全取当前播放的剧集（越界/空返回 null，调用方需判空） */
+    public VodSeries getCurrentSeries() {
+        java.util.List<VodSeries> list = getPlaySeries();
+        if (list == null || playIndex < 0 || playIndex >= list.size()) return null;
+        return list.get(playIndex);
+    }
+
+    /** 安全取指定下标的剧集 */
+    public VodSeries getSeriesAt(int index) {
+        java.util.List<VodSeries> list = getPlaySeries();
+        if (list == null || index < 0 || index >= list.size()) return null;
+        return list.get(index);
+    }
+
     public void reverse() {
         Set<String> flags = seriesMap.keySet();
         for (String flag : flags) {

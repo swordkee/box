@@ -808,6 +808,14 @@ public class LivePlayActivity extends BaseActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        // NOTE(2026-10-26): 清理本类 8 个 postDelayed Runnable，避免销毁后回调（泄漏+空指针）
+        try {
+            if (mHandler != null) {
+                mHandler.removeCallbacksAndMessages(null);
+            }
+        } catch (Throwable th) {
+            com.github.tvbox.osc.bbox.util.LOG.e("live onDestroy: " + th);
+        }
         if (mVideoView != null) {
             mVideoView.release();
             mVideoView = null;
