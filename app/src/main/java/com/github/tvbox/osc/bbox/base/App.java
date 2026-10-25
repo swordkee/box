@@ -181,54 +181,76 @@ public class App extends MultiDexApplication {
             // NOTE(2026-10-25): 自愈——已移除的崩溃源（dexopt SIGSEGV）残留在 Hawk 时重置回本地内置
         try {
             String cur = Hawk.get(HawkConfig.API_URL, "");
-            if (cur.contains("tinghao") || cur.contains("shiguang") || cur.contains("laoliubei")) {
+            // 所有内置 configs/*.json 的真实存在性校验——指向不存在的文件就重置（防止残留已删源）
+            boolean needReset = false;
+            if (cur.startsWith("file://configs/")) {
+                String name = cur.substring("file://configs/".length());
+                java.io.File f = new java.io.File(new java.io.File(getFilesDir(), "configs"), name);
+                needReset = !f.exists();
+            }
+            if (needReset) {
                 Hawk.put(HawkConfig.API_URL, "file://tvbox.json");
                 Hawk.put(HawkConfig.API_NAME, "本地内置");
-                LOG.i("echo-config self-heal: reset to bundled tvbox.json (removed source " + cur + ")");
+                LOG.i("echo-config self-heal: reset to bundled tvbox.json (missing source " + cur + ")");
             }
             // 同时清掉 API_MAP 里这三项，避免列表再选到
+            // NOTE(2026-10-25): 白名单重建——API_MAP/历史里凡不属于当前内置源的一律清掉。
+            // 之前只删了固定几个名字，但 Hawk 里可能残留别的已删源（如 肥猫/老刘备/4K小盒子），
+            // 导致换源弹框照样列出不可用的源（用户实测『源与分类乱出现』）。
+            final java.util.HashSet<String> allow = new java.util.HashSet<String>();
+            allow.add("本地内置");
+            allow.add("王二小");
+            allow.add("小马");
+            allow.add("认歌");
+            allow.add("小盒子单仓");
+
             HashMap<String, String> healMap = Hawk.get(HawkConfig.API_MAP, new HashMap<String, String>());
-            boolean dirty = false;
-            for (String k : new String[]{"老刘备", "拾光多仓", "挺好多仓"}) {
-                if (healMap.remove(k) != null) dirty = true;
-            }
             ArrayList<String> healHistory = Hawk.get(HawkConfig.API_NAME_HISTORY, new ArrayList<String>());
-            dirty |= healHistory.remove("老刘备");
-            dirty |= healHistory.remove("拾光多仓");
-            dirty |= healHistory.remove("挺好多仓");
+            boolean dirty = false;
+            java.util.Iterator<String> it = healMap.keySet().iterator();
+            while (it.hasNext()) {
+                String k = it.next();
+                if (!allow.contains(k)) {
+                    it.remove();
+                    dirty = true;
+                    LOG.i("echo-config self-heal: pruned source " + k);
+                }
+            }
+            for (int i = healHistory.size() - 1; i >= 0; i--) {
+                if (!allow.contains(healHistory.get(i))) {
+                    LOG.i("echo-config self-heal: pruned history " + healHistory.get(i));
+                    healHistory.remove(i);
+                    dirty = true;
+                }
+            }
             if (dirty) {
                 Hawk.put(HawkConfig.API_MAP, healMap);
                 Hawk.put(HawkConfig.API_NAME_HISTORY, healHistory);
-                LOG.i("echo-config self-heal: pruned removed sources from map");
+                LOG.i("echo-config self-heal: map pruned to whitelist");
             }
         } catch (Throwable th) {
             LOG.e("config self-heal: " + th);
         }
 
-        // NOTE(2026-10-25): 6 源内置 assets/configs/（启动释放 filesDir）。
-            // 已移除 老刘备/拾光/挺好——它们的 jar 在 dalvik dexopt 时 native crash(signal 11)，应用层无解
-            // 9 源配置 JSON 全部内置 assets/configs/（启动释放 filesDir），
-            // 切换零网络依赖——gh-proxy.org 公共代理不稳定，远程切换不可靠
+        // NOTE(2026-10-25): 4 源内置（ouge/wangerxiao/xiaohezi/xiaoma），jar 全部打进 APK（assets/jars/）
+        // 已移除 老刘备/拾光/挺好/4K小盒子/肥猫——它们的 jar 在 dalvik dexopt 时 native crash(signal 11)
+        // 或远程 jar 已失效（404/超时），只保留实测可用的 4 个
             String[][] sources = {
                     {"本地内置", "file://tvbox.json"},
-                    {"肥猫", "file://configs/feimao.json"},
                     {"王二小", "file://configs/wangerxiao.json"},
                     {"小马", "file://configs/xiaoma.json"},
                     {"认歌", "file://configs/ouge.json"},
-                    {"4K小盒子", "file://configs/4k.json"},
                     {"小盒子单仓", "file://configs/xiaohezi.json"},
             };
+            HashMap<String, String> seedMap = Hawk.get(HawkConfig.API_MAP, new HashMap<String, String>());
+            ArrayList<String> seedHistory = Hawk.get(HawkConfig.API_NAME_HISTORY, new ArrayList<String>());
             for (String[] e : sources) {
-                // 内置源以 APK 版本为准，无条件覆盖（旧 seed 是 gh-proxy 远程 URL）
-                apiMap.put(e[0], e[1]);
-                if (!apiNameHistory.contains(e[0])) apiNameHistory.add(e[0]);
+                // 内置源以 APK 版本为准，无条件覆盖
+                seedMap.put(e[0], e[1]);
+                if (!seedHistory.contains(e[0])) seedHistory.add(e[0]);
             }
-            for (String[] e : sources) {
-                if (!apiMap.containsKey(e[0])) apiMap.put(e[0], e[1]);
-                if (!apiNameHistory.contains(e[0])) apiNameHistory.add(e[0]);
-            }
-            Hawk.put(HawkConfig.API_MAP, apiMap);
-            Hawk.put(HawkConfig.API_NAME_HISTORY, apiNameHistory);
+            Hawk.put(HawkConfig.API_MAP, seedMap);
+            Hawk.put(HawkConfig.API_NAME_HISTORY, seedHistory);
         } catch (Throwable th) {
             LOG.e("seed api map: " + th);
         }
@@ -353,15 +375,16 @@ public class App extends MultiDexApplication {
         // 基准变了会 404；按 loadJar 的 cache key（MD5(spider 相对串)）预置到 filesDir/csp，
         // 配置 md5 与 jar 实际 md5 一致 → 缓存命中直接用，零网络
         try {
-            // jar 与配置同目录（assets/configs/），loadJar 相对路径按配置目录解析
-            String[] bundledJars = {}; // 崩溃 jar 已移除，保留机制供将来内置可用 jar
-            java.io.File cfgDir = new java.io.File(getFilesDir(), "configs");
-            cfgDir.mkdirs();
+            // NOTE(2026-10-25): 内置 jar 释放——4 个实测可用的 jar 打进 APK（assets/jars/），
+            // 释放到 filesDir/jars/，配置用 file://jars/xxx.jar（RemoteServer /file/ 读 filesDir），彻底零网络
+            String[] bundledJars = {"ouge.jar", "wangerxiao.jar", "xiaohezi.jar", "xiaoma.jar"};
+            java.io.File jarDir = new java.io.File(getFilesDir(), "jars");
+            jarDir.mkdirs();
             for (String jarName : bundledJars) {
                 try {
-                    java.io.InputStream jis = getAssets().open("configs/" + jarName);
+                    java.io.InputStream jis = getAssets().open("jars/" + jarName);
                     java.io.FileOutputStream jfos = new java.io.FileOutputStream(
-                            new java.io.File(cfgDir, jarName), false);
+                            new java.io.File(jarDir, jarName), false);
                     byte[] jtmp = new byte[8192];
                     int jn;
                     while ((jn = jis.read(jtmp)) != -1) jfos.write(jtmp, 0, jn);

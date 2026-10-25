@@ -74,6 +74,22 @@ public class DlnaAVTransport {
     private String WriteStatus = "NOT_IMPLEMENTED";
 
     // ------------------------------------------------ A_ARG_TYPE 状态变量
+    // NOTE(2026-10-25): GetDeviceCapabilities/GetTransportSettings 的 out 参数必须有对应状态变量
+    @UpnpStateVariable(sendEvents = false, defaultValue = "NETWORK")
+    private String PossiblePlaybackStorageMedia = "NETWORK";
+
+    @UpnpStateVariable(sendEvents = false, defaultValue = "NOT_IMPLEMENTED")
+    private String PossibleRecordStorageMedia = "NOT_IMPLEMENTED";
+
+    @UpnpStateVariable(sendEvents = false, defaultValue = "NOT_IMPLEMENTED")
+    private String PossibleRecordQualityModes = "NOT_IMPLEMENTED";
+
+    @UpnpStateVariable(sendEvents = false, defaultValue = "NORMAL")
+    private String CurrentPlayMode = "NORMAL";
+
+    @UpnpStateVariable(sendEvents = false, defaultValue = "NOT_IMPLEMENTED")
+    private String CurrentRecordQualityMode = "NOT_IMPLEMENTED";
+
     @UpnpStateVariable(sendEvents = false, defaultValue = "0")
     private UnsignedIntegerFourBytes A_ARG_TYPE_InstanceID = new UnsignedIntegerFourBytes(0);
 
@@ -100,9 +116,9 @@ public class DlnaAVTransport {
 
     @UpnpAction(name = "SetAVTransportURI")
     public void setAVTransportURI(
-            @UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId,
-            @UpnpInputArgument(name = "CurrentURI") String uri,
-            @UpnpInputArgument(name = "CurrentURIMetaData") String uriMetaData) {
+            @UpnpInputArgument(name = "InstanceID", stateVariable = "A_ARG_TYPE_InstanceID") UnsignedIntegerFourBytes instanceId,
+            @UpnpInputArgument(name = "CurrentURI", stateVariable = "AVTransportURI") String uri,
+            @UpnpInputArgument(name = "CurrentURIMetaData", stateVariable = "AVTransportURIMetaData") String uriMetaData) {
         DlnaRenderState.reset();
         DlnaRenderState.currentUri = uri == null ? "" : uri;
         DlnaRenderState.uriMetaData = uriMetaData == null ? "" : uriMetaData;
@@ -118,8 +134,8 @@ public class DlnaAVTransport {
     }
 
     @UpnpAction(name = "Play")
-    public void play(@UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId,
-                     @UpnpInputArgument(name = "Speed") String speed) {
+    public void play(@UpnpInputArgument(name = "InstanceID", stateVariable = "A_ARG_TYPE_InstanceID") UnsignedIntegerFourBytes instanceId,
+                     @UpnpInputArgument(name = "Speed", stateVariable = "TransportPlaySpeed") String speed) {
         if (speed != null && speed.length() > 0) {
             TransportPlaySpeed = speed;
             DlnaRenderState.speed = speed;
@@ -130,23 +146,23 @@ public class DlnaAVTransport {
     }
 
     @UpnpAction(name = "Pause")
-    public void pause(@UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId) {
+    public void pause(@UpnpInputArgument(name = "InstanceID", stateVariable = "A_ARG_TYPE_InstanceID") UnsignedIntegerFourBytes instanceId) {
         TransportState = "PAUSED_PLAYBACK";
         DlnaRenderState.TRANSPORT_STATE.set("PAUSED_PLAYBACK");
         DlnaRendererService.notifyCast(DlnaRendererService.MSG_PAUSE);
     }
 
     @UpnpAction(name = "Stop")
-    public void stop(@UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId) {
+    public void stop(@UpnpInputArgument(name = "InstanceID", stateVariable = "A_ARG_TYPE_InstanceID") UnsignedIntegerFourBytes instanceId) {
         TransportState = "STOPPED";
         DlnaRenderState.TRANSPORT_STATE.set("STOPPED");
         DlnaRendererService.notifyCast(DlnaRendererService.MSG_STOP);
     }
 
     @UpnpAction(name = "Seek")
-    public void seek(@UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId,
-                     @UpnpInputArgument(name = "Unit") String unit,
-                     @UpnpInputArgument(name = "Target") String target) {
+    public void seek(@UpnpInputArgument(name = "InstanceID", stateVariable = "A_ARG_TYPE_InstanceID") UnsignedIntegerFourBytes instanceId,
+                     @UpnpInputArgument(name = "Unit", stateVariable = "A_ARG_TYPE_SeekMode") String unit,
+                     @UpnpInputArgument(name = "Target", stateVariable = "A_ARG_TYPE_SeekTarget") String target) {
         if (target != null && target.contains(":")) {
             DlnaRendererService.seekTarget = target;
             DlnaRendererService.notifyCast(DlnaRendererService.MSG_SEEK);
@@ -158,7 +174,7 @@ public class DlnaAVTransport {
             @UpnpOutputArgument(name = "CurrentTransportStatus", stateVariable = "TransportStatus"),
             @UpnpOutputArgument(name = "CurrentSpeed", stateVariable = "TransportPlaySpeed")
     })
-    public void getTransportInfo(@UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId) {
+    public void getTransportInfo(@UpnpInputArgument(name = "InstanceID", stateVariable = "A_ARG_TYPE_InstanceID") UnsignedIntegerFourBytes instanceId) {
         // out 值由 cling 从状态变量字段反射读取（方法执行后）
     }
 
@@ -172,7 +188,7 @@ public class DlnaAVTransport {
             @UpnpOutputArgument(name = "RelCount", stateVariable = "RelativeCounterPosition"),
             @UpnpOutputArgument(name = "AbsCount", stateVariable = "AbsoluteCounterPosition")
     })
-    public void getPositionInfo(@UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId) {
+    public void getPositionInfo(@UpnpInputArgument(name = "InstanceID", stateVariable = "A_ARG_TYPE_InstanceID") UnsignedIntegerFourBytes instanceId) {
         // 播放器侧每秒回写 DlnaRenderState.positionMs/durationMs，这里同步进字段供反射读取
         CurrentTrackDuration = DlnaRenderState.toHms(DlnaRenderState.durationMs);
         CurrentMediaDuration = CurrentTrackDuration;
@@ -192,25 +208,31 @@ public class DlnaAVTransport {
             @UpnpOutputArgument(name = "RecordMedium", stateVariable = "RecordMedium"),
             @UpnpOutputArgument(name = "WriteStatus", stateVariable = "WriteStatus")
     })
-    public void getMediaInfo(@UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId) {
+    public void getMediaInfo(@UpnpInputArgument(name = "InstanceID", stateVariable = "A_ARG_TYPE_InstanceID") UnsignedIntegerFourBytes instanceId) {
         CurrentMediaDuration = DlnaRenderState.toHms(DlnaRenderState.durationMs);
     }
 
     @UpnpAction(name = "GetDeviceCapabilities", out = {
-            @UpnpOutputArgument(name = "PlayMedia", stateVariable = "PossiblePlaybackStorageMedia"),
-            @UpnpOutputArgument(name = "RecMedia", stateVariable = "PossibleRecordStorageMedia"),
-            @UpnpOutputArgument(name = "RecQualityModes", stateVariable = "PossibleRecordQualityModes")
+            @UpnpOutputArgument(name = "PlayMedia", getterName = "getPossiblePlaybackStorageMedia"),
+            @UpnpOutputArgument(name = "RecMedia", getterName = "getPossibleRecordStorageMedia"),
+            @UpnpOutputArgument(name = "RecQualityModes", getterName = "getPossibleRecordQualityModes")
     })
-    public void getDeviceCapabilities(@UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId) {
-        // 占位：Possible* 状态变量以 defaultValue 输出
+    public void getDeviceCapabilities(@UpnpInputArgument(name = "InstanceID", stateVariable = "A_ARG_TYPE_InstanceID") UnsignedIntegerFourBytes instanceId) {
     }
 
     @UpnpAction(name = "GetTransportSettings", out = {
-            @UpnpOutputArgument(name = "PlayMode", stateVariable = "CurrentPlayMode"),
-            @UpnpOutputArgument(name = "RecQualityMode", stateVariable = "CurrentRecordQualityMode")
+            @UpnpOutputArgument(name = "PlayMode", getterName = "getCurrentPlayMode"),
+            @UpnpOutputArgument(name = "RecQualityMode", getterName = "getCurrentRecordQualityMode")
     })
-    public void getTransportSettings(@UpnpInputArgument(name = "InstanceID") UnsignedIntegerFourBytes instanceId) {
+    public void getTransportSettings(@UpnpInputArgument(name = "InstanceID", stateVariable = "A_ARG_TYPE_InstanceID") UnsignedIntegerFourBytes instanceId) {
     }
+
+    // ---- cling out 参数 getter（getterName 绑定）----
+    public String getPossiblePlaybackStorageMedia() { return PossiblePlaybackStorageMedia; }
+    public String getPossibleRecordStorageMedia() { return PossibleRecordStorageMedia; }
+    public String getPossibleRecordQualityModes() { return PossibleRecordQualityModes; }
+    public String getCurrentPlayMode() { return CurrentPlayMode; }
+    public String getCurrentRecordQualityMode() { return CurrentRecordQualityMode; }
 
     /** TransportPlaySpeed 的合法值枚举（UPnP 标准仅 1） */
     public static class TransportPlaySpeedHolder {
