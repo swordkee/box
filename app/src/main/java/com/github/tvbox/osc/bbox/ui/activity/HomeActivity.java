@@ -112,6 +112,7 @@ public class HomeActivity extends BaseActivity {
     @Override
     protected void onCreate(@Nullable @org.jetbrains.annotations.Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        RECREATING = false; // 新实例已就绪，恢复「首页销毁=退出」默认语义
         verifyPermissions(this);// 动态申请权限
         // NOTE(2026-10-25): DLNA MediaRenderer 常驻（接收投屏）——延迟启动避开 jar 首次加载高峰
         new Handler().postDelayed(new Runnable() {
@@ -747,10 +748,17 @@ public class HomeActivity extends BaseActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        if (RECREATING) {
+            // NOTE(2026-10-25): 换源/换片源的重建销毁——进程必须存活，RemoteServer(9978) 继续服务新实例
+            return;
+        }
         EventBus.getDefault().unregister(this);
         AppManager.getInstance().appExit(0);
         ControlManager.get().stopServer();
     }
+
+    /** 换源/换片源走 CLEAR_TASK 重建，旧实例 onDestroy 时不得自杀进程（appExit） */
+    public static volatile boolean RECREATING = false;
 
     private SelectDialog<SwitchItem> mSiteSwitchDialog;
 
@@ -828,6 +836,7 @@ public class HomeActivity extends BaseActivity {
 
     /** 切换配置源：写 API_NAME/API_URL 后整页重启并强制重载配置（useCache=false） */
     private void switchConfig(String name, String url) {
+        RECREATING = true;
         Hawk.put(HawkConfig.API_NAME, name);
         Hawk.put(HawkConfig.API_URL, url);
         Intent intent = new Intent(getApplicationContext(), HomeActivity.class);
@@ -840,6 +849,7 @@ public class HomeActivity extends BaseActivity {
 
     private void refreshHome()
     {
+        RECREATING = true;
         Intent intent = new Intent(getApplicationContext(), HomeActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         Bundle bundle = new Bundle();
