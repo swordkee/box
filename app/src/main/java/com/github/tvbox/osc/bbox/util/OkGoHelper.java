@@ -323,8 +323,13 @@ public class OkGoHelper {
     static void initPicasso(OkHttpClient client) {
         client.dispatcher().setMaxRequestsPerHost(10);
         MyOkhttpDownLoader downloader = new MyOkhttpDownLoader(client);
+        // NOTE(2026-10-25): 1GB 机器内存优化——Picasso 默认内存缓存约占可用堆 1/7（~100MB），
+        // 与本机硬解/ijk 抢内存易 OOM；显式限到 24MB（约 1000 张 160x120 RGB565 缩略图）
+        final int memCacheSize = 24 * 1024 * 1024;
+        com.squareup.picasso.LruCache memCache = new com.squareup.picasso.LruCache(memCacheSize);
         Picasso picasso = new Picasso.Builder(App.getInstance())
                 .downloader(downloader)
+                .memoryCache(memCache)
                 .defaultBitmapConfig(Bitmap.Config.RGB_565)
                 .addRequestHandler(new DownsampleRequestHandler(client, 640))
                 .build();

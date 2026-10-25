@@ -199,10 +199,7 @@ public class App extends MultiDexApplication {
             // 导致换源弹框照样列出不可用的源（用户实测『源与分类乱出现』）。
             final java.util.HashSet<String> allow = new java.util.HashSet<String>();
             allow.add("本地内置");
-            allow.add("认歌");
-            allow.add("王二小");
-            allow.add("小盒子");
-            allow.add("小马");
+            allow.add("纯API合集");
 
             HashMap<String, String> healMap = Hawk.get(HawkConfig.API_MAP, new HashMap<String, String>());
             ArrayList<String> healHistory = Hawk.get(HawkConfig.API_NAME_HISTORY, new ArrayList<String>());
@@ -238,12 +235,11 @@ public class App extends MultiDexApplication {
             // NOTE(2026-10-25): 只保留本地内置源（量子/非凡/暴风，纯 JSON API）。
             // 所有 jar 聚合源已移除——dalvik 4.0.4 加载这些 jar 时虚拟机自身 SIGSEGV
             // （fault addr deadd00d，Java 层无解），实测 ouge/wangerxiao/xiaohezi/xiaoma 全崩
+            // NOTE(2026-10-25): 只保留纯 API 源（零 jar 依赖，规避 dalvik dexopt 崩溃）
+            // 本地内置=量子/非凡/暴风；纯API合集=10 个苹果CMS站点（电影天堂/天涯/量子/非凡/极速/建安/百度/暴风/闪电/光速）
             String[][] sources = {
                     {"本地内置", "file://tvbox.json"},
-                    {"认歌", "file://configs/ouge.json"},
-                    {"王二小", "file://configs/wangerxiao.json"},
-                    {"小盒子", "file://configs/xiaohezi.json"},
-                    {"小马", "file://configs/xiaoma.json"},
+                    {"纯API合集", "file://configs/api_only.json"},
             };
             HashMap<String, String> seedMap = Hawk.get(HawkConfig.API_MAP, new HashMap<String, String>());
             ArrayList<String> seedHistory = Hawk.get(HawkConfig.API_NAME_HISTORY, new ArrayList<String>());
@@ -380,7 +376,7 @@ public class App extends MultiDexApplication {
         try {
             // NOTE(2026-10-25): 内置 jar 释放——4 个实测可用的 jar 打进 APK（assets/jars/），
             // 释放到 filesDir/jars/，配置用 file://jars/xxx.jar（RemoteServer /file/ 读 filesDir），彻底零网络
-            String[] bundledJars = {"ouge.jar", "wangerxiao.jar", "xiaohezi.jar", "xiaoma.jar"};
+            String[] bundledJars = {}; // 纯 API 方案，无 jar
             java.io.File jarDir = new java.io.File(getFilesDir(), "jars");
             jarDir.mkdirs();
             for (String jarName : bundledJars) {
