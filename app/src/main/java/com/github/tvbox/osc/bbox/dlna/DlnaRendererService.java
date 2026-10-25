@@ -58,7 +58,22 @@ public class DlnaRendererService extends Service {
 
     private void initUpnp() {
         try {
-            // NOTE: 构造即启动（UpnpServiceImpl 构造内含 startup），multicast lock 由 AndroidRouter 自管
+            // NOTE(2026-10-25): 收 SSDP M-SEARCH 组播必需 MulticastLock——官方 AndroidUpnpServiceImpl
+            // 的职责，我们自建 Service 绕过了它，必须显式获取（否则 M-SEARCH 零响应=手机发现但连不上）
+            android.net.wifi.WifiManager wm = (android.net.wifi.WifiManager)
+                    getApplicationContext().getSystemService(android.content.Context.WIFI_SERVICE);
+            if (wm != null) {
+                android.net.wifi.WifiManager.MulticastLock mlock = wm.createMulticastLock("tvbox-dlna");
+                mlock.setReferenceCounted(false);
+                mlock.acquire();
+                LOG("multicast lock acquired");
+            }
+            // cling 内部日志用 JUL，桥到 logcat 否则全丢；开 FINE 看收包/响应细节
+            java.util.logging.Logger rootLogger = java.util.logging.Logger.getLogger("");
+            rootLogger.addHandler(new org.fourthline.cling.android.FixedAndroidLogHandler());
+            rootLogger.setLevel(java.util.logging.Level.FINE);
+            java.util.logging.Logger.getLogger("org.fourthline.cling").setLevel(java.util.logging.Level.FINE);
+            // NOTE: 构造即启动（UpnpServiceImpl 构造内含 startup）
             AndroidUpnpServiceConfiguration cfg = new AndroidUpnpServiceConfiguration(0) {
                 @Override
                 public org.fourthline.cling.model.types.ServiceType[] getExclusiveServiceTypes() {
