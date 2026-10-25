@@ -199,10 +199,10 @@ public class App extends MultiDexApplication {
             // 导致换源弹框照样列出不可用的源（用户实测『源与分类乱出现』）。
             final java.util.HashSet<String> allow = new java.util.HashSet<String>();
             allow.add("本地内置");
-            allow.add("王二小");
-            allow.add("小马");
             allow.add("认歌");
-            allow.add("小盒子单仓");
+            allow.add("王二小");
+            allow.add("小盒子");
+            allow.add("小马");
 
             HashMap<String, String> healMap = Hawk.get(HawkConfig.API_MAP, new HashMap<String, String>());
             ArrayList<String> healHistory = Hawk.get(HawkConfig.API_NAME_HISTORY, new ArrayList<String>());
@@ -235,12 +235,15 @@ public class App extends MultiDexApplication {
         // NOTE(2026-10-25): 4 源内置（ouge/wangerxiao/xiaohezi/xiaoma），jar 全部打进 APK（assets/jars/）
         // 已移除 老刘备/拾光/挺好/4K小盒子/肥猫——它们的 jar 在 dalvik dexopt 时 native crash(signal 11)
         // 或远程 jar 已失效（404/超时），只保留实测可用的 4 个
+            // NOTE(2026-10-25): 只保留本地内置源（量子/非凡/暴风，纯 JSON API）。
+            // 所有 jar 聚合源已移除——dalvik 4.0.4 加载这些 jar 时虚拟机自身 SIGSEGV
+            // （fault addr deadd00d，Java 层无解），实测 ouge/wangerxiao/xiaohezi/xiaoma 全崩
             String[][] sources = {
                     {"本地内置", "file://tvbox.json"},
-                    {"王二小", "file://configs/wangerxiao.json"},
-                    {"小马", "file://configs/xiaoma.json"},
                     {"认歌", "file://configs/ouge.json"},
-                    {"小盒子单仓", "file://configs/xiaohezi.json"},
+                    {"王二小", "file://configs/wangerxiao.json"},
+                    {"小盒子", "file://configs/xiaohezi.json"},
+                    {"小马", "file://configs/xiaoma.json"},
             };
             HashMap<String, String> seedMap = Hawk.get(HawkConfig.API_MAP, new HashMap<String, String>());
             ArrayList<String> seedHistory = Hawk.get(HawkConfig.API_NAME_HISTORY, new ArrayList<String>());

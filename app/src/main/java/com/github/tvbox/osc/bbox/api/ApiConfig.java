@@ -392,6 +392,21 @@ public class ApiConfig {
         String md5 = urls.length > 1 ? urls[1].trim() : "";
         File cache = new File(App.getInstance().getFilesDir().getAbsolutePath() + "/csp/"+MD5.string2MD5(jarUrl)+".jar");
 
+        // NOTE(2026-10-25): 内置 jar（file://jars/xxx.jar）直接本地加载——OkGo 不支持 file:// scheme，
+        // 走下载会报 "Expected URL scheme 'http' or 'https' but was 'file'"（用户实测切源加载失败）
+        if (jarUrl.startsWith("file://")) {
+            String rel = jarUrl.substring("file://".length());
+            final File localJar = new File(App.getInstance().getFilesDir(), rel);
+            if (localJar.exists()) {
+                LOG.i("echo-load jar local: " + localJar.getAbsolutePath());
+                loadJarAsync(localJar, "内置JAR加载失败", callback);
+            } else {
+                LOG.e("echo-load jar local MISSING: " + localJar.getAbsolutePath());
+                callback.error("内置JAR缺失: " + rel);
+            }
+            return;
+        }
+
         if (!md5.isEmpty() || useCache) {
             if (cache.exists() && (useCache || MD5.getFileMd5(cache).equalsIgnoreCase(md5))) {
                 loadJarAsync(cache, "md5缓存失效", callback);
