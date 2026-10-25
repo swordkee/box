@@ -74,6 +74,9 @@ public class HawkConfig {
     public static final String HOME_HISTORY_LIST_POS = "home_history_list_postion"; // 0-home 1-setting 2-living 3-detail
     public static final String SEEKBAR_SLIDE_TIMES = "seekbar_slide_times"; // 进度条时移倍数
 
+    /** NOTE(2026-10-25): DLNA 接收（投屏）开关——默认关闭，避免占用内存与组播端口 */
+    public static final String DLNA_ENABLE = "dlna_enable";
+
     public static boolean hotVodDelete;
 
 }

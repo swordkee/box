@@ -27,7 +27,23 @@ import me.jessyan.autosize.utils.AutoSizeUtils;
  * @version 1.0.0 <br/>
  */
 public class ImgUtil {
-    private static final Map<String, Drawable> drawableCache = new HashMap<>();
+    // NOTE(2026-10-25): 原为静态无上限 HashMap，浏览几百部影片后每个封面 Drawable 常驻内存
+    // → 1GB 机器必 OOM。改为 LruCache（上限 8MB），超出自动淘汰
+    private static final int DRAWABLE_CACHE_KB = 8 * 1024;
+    private static final android.util.LruCache<String, Drawable> drawableCache =
+            new android.util.LruCache<String, Drawable>(DRAWABLE_CACHE_KB) {
+                @Override
+                protected int sizeOf(String key, Drawable value) {
+                    if (value instanceof android.graphics.drawable.BitmapDrawable) {
+                        android.graphics.Bitmap bm =
+                                ((android.graphics.drawable.BitmapDrawable) value).getBitmap();
+                        if (bm != null && !bm.isRecycled()) {
+                            return bm.getByteCount() / 1024;
+                        }
+                    }
+                    return 64; // 非位图按 64KB 估算
+                }
+            };
     public static boolean isBase64Image(String picUrl) {
         return picUrl.startsWith("data:image");
     }
@@ -95,7 +111,7 @@ public class ImgUtil {
         if(text.isEmpty())text="TVBox";
         text=text.substring(0, 1);
         // 如果缓存中已存在，直接返回
-        if (drawableCache.containsKey(text)) {
+        if (drawableCache.get(text) != null) {
             return drawableCache.get(text);
         }
         int width = 180, height = 240; // 设定图片大小
@@ -129,6 +145,6 @@ public class ImgUtil {
     }
 
     public static void clearCache() {
-        drawableCache.clear();
+        drawableCache.evictAll();
     }
 }

@@ -61,6 +61,7 @@ public class ModelSettingFragment extends BaseLazyFragment {
     private TextView tvHistoryNum;
     private TextView tvSearchView;
     private TextView tvShowPreviewText;
+    private TextView tvDlnaEnableText;
     private TextView tvFastSearchText;
     private TextView tvm3u8AdText;
     private TextView tvRecStyleText;
@@ -92,6 +93,8 @@ public class ModelSettingFragment extends BaseLazyFragment {
         tvm3u8AdText.setText(Hawk.get(HawkConfig.M3U8_PURIFY, false) ? "开启" : "关闭");
         tvRecStyleText = findViewById(R.id.showRecStyleText);
         tvRecStyleText.setText(Hawk.get(HawkConfig.HOME_REC_STYLE, false) ? "是" : "否");
+        tvDlnaEnableText = findViewById(R.id.dlnaEnableText);
+        tvDlnaEnableText.setText(Hawk.get(HawkConfig.DLNA_ENABLE, false) ? "开启" : "关闭");
         tvShowPreviewText = findViewById(R.id.showPreviewText);
         tvShowPreviewText.setText(Hawk.get(HawkConfig.SHOW_PREVIEW, true) ? "开启" : "关闭");
         tvDebugOpen = findViewById(R.id.tvDebugOpen);
@@ -276,6 +279,32 @@ public class ModelSettingFragment extends BaseLazyFragment {
                 dialog.show();
             }
         });
+        findViewById(R.id.llDlnaEnable).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                FastClickCheckUtil.check(v);
+                boolean on = Hawk.get(HawkConfig.DLNA_ENABLE, false);
+                on = !on;
+                Hawk.put(HawkConfig.DLNA_ENABLE, on);
+                tvDlnaEnableText.setText(on ? "开启" : "关闭");
+                try {
+                    if (on) {
+                        mActivity.startService(new android.content.Intent(mActivity,
+                                com.github.tvbox.osc.bbox.dlna.DlnaRendererService.class));
+                        android.widget.Toast.makeText(mActivity,
+                                "DLNA 投屏已开启（手机可搜索到 TVBox）", android.widget.Toast.LENGTH_SHORT).show();
+                    } else {
+                        mActivity.stopService(new android.content.Intent(mActivity,
+                                com.github.tvbox.osc.bbox.dlna.DlnaRendererService.class));
+                        android.widget.Toast.makeText(mActivity,
+                                "DLNA 投屏已关闭", android.widget.Toast.LENGTH_SHORT).show();
+                    }
+                } catch (Throwable th) {
+                    com.github.tvbox.osc.bbox.util.LOG.e("dlna toggle: " + th);
+                }
+            }
+        });
+
         findViewById(R.id.llApi).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {

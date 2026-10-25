@@ -114,17 +114,20 @@ public class HomeActivity extends BaseActivity {
         super.onCreate(savedInstanceState);
         RECREATING = false; // 新实例已就绪，恢复「首页销毁=退出」默认语义
         verifyPermissions(this);// 动态申请权限
-        // NOTE(2026-10-25): DLNA MediaRenderer 常驻（接收投屏）——延迟启动避开 jar 首次加载高峰
-        new Handler().postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    startService(new Intent(HomeActivity.this, com.github.tvbox.osc.bbox.dlna.DlnaRendererService.class));
-                } catch (Throwable th) {
-                    com.github.tvbox.osc.bbox.util.LOG.e("DLNA service start: " + th);
+        // NOTE(2026-10-25): DLNA 接收端默认关闭（设置里手动开启才启动）——
+        // 它常驻 jetty+cling 约 20MB 内存并占用 SSDP 组播端口，1GB 机器上按需启用
+        if (Hawk.get(HawkConfig.DLNA_ENABLE, false)) {
+            new Handler().postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        startService(new Intent(HomeActivity.this, com.github.tvbox.osc.bbox.dlna.DlnaRendererService.class));
+                    } catch (Throwable th) {
+                        com.github.tvbox.osc.bbox.util.LOG.e("DLNA service start: " + th);
+                    }
                 }
-            }
-        }, 60000); // 60s：避开启动高峰（海信 IgrsWatchDog 对启动超时 app 会动手，实测 4s 仍冲突）
+            }, 3000);
+        }
     }
 
     private static final int REQUEST_EXTERNAL_STORAGE = 1;
@@ -243,8 +246,9 @@ public class HomeActivity extends BaseActivity {
                     textView.getPaint().setFakeBoldText(true);
                     textView.setTextColor(HomeActivity.this.getResources().getColor(R.color.color_FFFFFF));
                     textView.invalidate();
+                    if (sortAdapter == null || position >= sortAdapter.getItemCount()) return;
                     MovieSort.SortData sortData = sortAdapter.getItem(position);
-                    if (!sortData.filters.isEmpty()) {
+                    if (sortData != null && sortData.filters != null && !sortData.filters.isEmpty()) {
                         showFilterIcon(sortData.filterSelectCount());
                     }
                     HomeActivity.this.sortFocusView = view;
@@ -256,7 +260,9 @@ public class HomeActivity extends BaseActivity {
 
             @Override
             public void onItemClick(TvRecyclerView parent, View itemView, int position) {
-                if (itemView != null && currentSelected == position) {
+                if (itemView != null && currentSelected == position
+                        && currentSelected >= 0 && currentSelected < fragments.size()
+                        && sortAdapter != null && position < sortAdapter.getItemCount()) {
                     BaseLazyFragment baseLazyFragment = fragments.get(currentSelected);
                     if ((baseLazyFragment instanceof GridFragment) && !sortAdapter.getItem(position).filters.isEmpty()) {// 弹出筛选
                         ((GridFragment) baseLazyFragment).showFilter();
@@ -270,6 +276,7 @@ public class HomeActivity extends BaseActivity {
         this.mGridView.setOnInBorderKeyEventListener(new TvRecyclerView.OnInBorderKeyEventListener() {
             public boolean onInBorderKeyEvent(int direction, View view) {
                 if (direction == View.FOCUS_UP) {
+                    if (sortFocused < 0 || sortFocused >= fragments.size()) return false;
                     BaseLazyFragment baseLazyFragment = fragments.get(sortFocused);
                     if ((baseLazyFragment instanceof GridFragment)) {
                         ((GridFragment) baseLazyFragment).forceRefresh();
@@ -278,6 +285,7 @@ public class HomeActivity extends BaseActivity {
                 if (direction != View.FOCUS_DOWN) {
                     return false;
                 }
+                if (sortFocused < 0 || sortFocused >= fragments.size()) return false;
                 BaseLazyFragment baseLazyFragment = fragments.get(sortFocused);
                 if (!(baseLazyFragment instanceof GridFragment)) {
                     return false;
@@ -658,9 +666,22 @@ public class HomeActivity extends BaseActivity {
         public void run() {
             if (sortChange) {
                 sortChange = false;
-                if (sortFocused != currentSelected) {
+                // NOTE(2026-10-25): 快速切栏目时 sortFocused 可能超出 fragment 数（数据未加载完）
+                // 原实现直接 setCurrentItem(sortFocused) → IndexOutOfBounds 崩溃
+                int n = (sortAdapter == null) ? 0 : sortAdapter.getItemCount();
+                if (fragments.size() > 0 && n > 0 && sortFocused >= n) {
+                    sortFocused = n - 1;
+                }
+                if (sortFocused < 0) {
+                    sortFocused = 0;
+                }
+                if (sortFocused != currentSelected && fragments.size() > 0) {
                     currentSelected = sortFocused;
-                    mViewPager.setCurrentItem(sortFocused, false);
+                    try {
+                        mViewPager.setCurrentItem(sortFocused, false);
+                    } catch (Throwable th) {
+                        LOG.e("sort switch: " + th);
+                    }
                     changeTop(sortFocused != 0);
                 }
             }

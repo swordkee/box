@@ -392,11 +392,15 @@ public class DetailActivity extends BaseActivity {
                             break;
                         }
                     }
+                    if (position < 0 || position >= vodInfo.seriesFlags.size()) return;
                     VodInfo.VodSeriesFlag flag = vodInfo.seriesFlags.get(position);
                     flag.selected = true;
-                    // clean pre flag select status
-                    if (vodInfo.seriesMap.get(vodInfo.playFlag).size() > vodInfo.playIndex) {
-                        vodInfo.seriesMap.get(vodInfo.playFlag).get(vodInfo.playIndex).selected = false;
+                    // NOTE(2026-10-25): 线路切换时 seriesMap/playFlag/playIndex 可能不一致
+                    //（快速切换线路 / 数据未就绪）→ 加两级空值与越界保护
+                    java.util.List<VodInfo.VodSeries> curSeries = vodInfo.seriesMap.get(vodInfo.playFlag);
+                    if (curSeries != null && vodInfo.playIndex >= 0
+                            && vodInfo.playIndex < curSeries.size()) {
+                        curSeries.get(vodInfo.playIndex).selected = false;
                     }
                     vodInfo.playFlag = newFlag;
                     seriesFlagAdapter.notifyItemChanged(position);
