@@ -53,7 +53,9 @@ public class Proxy {
                 String redirectUrl = getRedirectedUrl(url);
 //                LOG.i("echo-url"+redirectUrl);
 
-                Request request = new Request.Builder().url(redirectUrl).build();
+                com.github.tvbox.osc.bbox.util.LOG.i("echo-itv-m3u8 " + redirectUrl);
+                Request request = new Request.Builder().url(redirectUrl)
+                        .header("User-Agent", "okhttp/3.12.0").build();
                 try (Response response = executeRequest(client, request)) {
                     if (response.isSuccessful()) {
                         assert response.body() != null;
@@ -69,8 +71,11 @@ public class Proxy {
                     }
                 }
             } else if (type.equals("ts")) {
-                Request request = new Request.Builder().url(url).build();
+                com.github.tvbox.osc.bbox.util.LOG.i("echo-itv-ts " + url);
+                Request request = new Request.Builder().url(url)
+                        .header("User-Agent", "okhttp/3.12.0").build();
                 try (Response response = executeRequest(client, request)) {
+                    com.github.tvbox.osc.bbox.util.LOG.i("echo-itv-ts code=" + response.code());
                     if (response.isSuccessful()) {
                         result[0] = 200;
                         result[1] = "video/mp2t";
@@ -180,9 +185,14 @@ public class Proxy {
     }
 
     public static String localProxyUrl(String absUrl, String type) {
+        // NOTE(2026-10-25): 幂等保护——播放器重试会让 processM3u8Content 二次进入，
+        // 已本地化的 URL 必须原样返回，否则套娃嵌套 proxy URL → 播放出错
+        if (absUrl == null || absUrl.contains(":9978/proxy?")) return absUrl;
         try {
             String addr = ControlManager.get().getAddress(true);
-            return addr + "proxy?do=proxy&go=live&type=" + type + "&url=" + URLEncoder.encode(absUrl, "UTF-8");
+            // NOTE(2026-10-25): 不带 do=proxy —— do 参数会被 RemoteServer 优先路由到 jar 专用代理
+                // (ApiConfig.proxyLocal)，无 jar 时 null → NPE → 分段 500。go=live 即路由 Proxy.proxy
+                return addr + "proxy?go=live&type=" + type + "&url=" + URLEncoder.encode(absUrl, "UTF-8");
         } catch (Throwable th) {
             return absUrl;
         }

@@ -127,38 +127,39 @@ public class App extends MultiDexApplication {
         Hawk.init(this).build();
 
         initBundledConfig();
-        // NOTE(2026-10-25 API15 port): 进程内 MITM 代理 —— jar 聚合源 https 解封
-        // 仅影响本进程（ProxySelector 进程属性），银河/腾讯等其他应用不受影响
+        // MITM proxy for jar https
         try {
-            MitmCertManager.init(this);
-            if (MitmProxy.start() && MitmCertManager.caExportFile() != null) {
-                java.net.ProxySelector.setDefault(new java.net.ProxySelector() {
-                    private final java.util.List<java.net.Proxy> mitm =
-                            java.util.Collections.singletonList(new java.net.Proxy(java.net.Proxy.Type.HTTP,
-                                    java.net.InetSocketAddress.createUnresolved("127.0.0.1", 8888)));
-                    private final java.util.List<java.net.Proxy> direct =
-                            java.util.Collections.singletonList(java.net.Proxy.NO_PROXY);
-
-                    @Override
+            com.github.tvbox.osc.bbox.util.MitmCertManager.init(this);
+            if (com.github.tvbox.osc.bbox.util.MitmProxy.start()) {
+                java.net.ProxySelector ps = new java.net.ProxySelector() {
                     public java.util.List<java.net.Proxy> select(java.net.URI uri) {
-                        String host = uri == null ? "" : uri.getHost();
-                        if (host != null && (host.equals("127.0.0.1") || host.equals("localhost")))
-                            return direct;
-                        return mitm;
+                        String h = uri == null ? "" : uri.getHost();
+                        if (h != null && (h.equals("127.0.0.1") || h.equals("localhost")))
+                            return java.util.Collections.singletonList(java.net.Proxy.NO_PROXY);
+                        return java.util.Collections.singletonList(new java.net.Proxy(
+                                java.net.Proxy.Type.HTTP,
+                                java.net.InetSocketAddress.createUnresolved("127.0.0.1", 8888)));
                     }
-
-                    @Override
-                    public void connectFailed(java.net.URI uri, java.net.SocketAddress sa, java.io.IOException ioe) {
-                    }
-                });
-                LOG.i("echo-mitm-proxy-wired");
+                    public void connectFailed(java.net.URI u, java.net.SocketAddress sa, java.io.IOException ioe) {}
+                };
+                java.net.ProxySelector.setDefault(ps);
+                LOG.i("MITM proxy wired");
             }
         } catch (Throwable th) {
-            LOG.e("echo-mitm-init-failed " + th);
+            LOG.e("MITM init error: " + th);
         }
 
         putDefault(HawkConfig.DEBUG_OPEN, false);
-        putDefault(HawkConfig.PLAY_TYPE, 1); //资源站 VOD 流均为 https，系统播放器 TLS1.0 拉不到清单，只有 ijk(自带 TLS1.2) 能播
+        // NOTE(2026-10-25): 硬解优先（系统 CmpbPlayer OMX），https 流由 m3u8 反代改写为本地 http 喂流；
+        // ijk 软解在此 CPU 上卡成 PPT，仅作硬解失败回退。老安装 Hawk 已存 1，用哨兵键做一次性迁移。
+        if (!Hawk.contains("play_type_hw_migrated_v2")) {
+            // Hawk.put 强制覆盖（putDefault 对已存在的 PLAY_TYPE=1 不生效）
+            Hawk.put(HawkConfig.PLAY_TYPE, 0);
+            // M3U8_PURIFY=false 走 goPlayUrl 直连，无 proxify，硬解拉不动 https → 强制走 purify/proxify 路径
+            Hawk.put(HawkConfig.M3U8_PURIFY, true);
+            Hawk.put("play_type_hw_migrated_v2", true);
+            LOG.i("echo-play-type migrated v2: hw-decode-first + m3u8-purify");
+        }
         putDefault(HawkConfig.HOME_REC, 1);
         // 默认渲染方式：推荐手机使用0-texture，电视1-surface
         putDefault(HawkConfig.PLAY_RENDER, 1);
@@ -176,18 +177,25 @@ public class App extends MultiDexApplication {
         try {
             HashMap<String, String> apiMap = Hawk.get(HawkConfig.API_MAP, new HashMap<String, String>());
             ArrayList<String> apiNameHistory = Hawk.get(HawkConfig.API_NAME_HISTORY, new ArrayList<String>());
+            // NOTE(2026-10-25): 9 源配置 JSON 全部内置 assets/configs/（启动释放 filesDir），
+            // 切换零网络依赖——gh-proxy.org 公共代理不稳定，远程切换不可靠
             String[][] sources = {
                     {"本地内置", "file://tvbox.json"},
-                    {"肥猫", "https://raw.githubusercontent.com/Lightconer/tvbox-ysc-config/main/output/feimao.json"},
-                    {"王二小", "https://raw.githubusercontent.com/Lightconer/tvbox-ysc-config/main/output/wangerxiao.json"},
-                    {"老刘备", "https://raw.githubusercontent.com/Lightconer/tvbox-ysc-config/main/output/laoliubei.json"},
-                    {"小马", "https://raw.githubusercontent.com/Lightconer/tvbox-ysc-config/main/output/xiaoma.json"},
-                    {"认歌", "https://raw.githubusercontent.com/Lightconer/tvbox-ysc-config/main/output/ouge.json"},
-                    {"4K小盒子", "https://raw.githubusercontent.com/Lightconer/tvbox-ysc-config/main/output/4k.json"},
-                    {"小盒子单仓", "https://raw.githubusercontent.com/Lightconer/tvbox-ysc-config/main/output/xiaohezi.json"},
-                    {"拾光多仓", "https://raw.githubusercontent.com/Lightconer/tvbox-ysc-config/main/output/shiguang.json"},
-                    {"挺好多仓", "https://raw.githubusercontent.com/Lightconer/tvbox-ysc-config/main/output/tinghao.json"},
+                    {"肥猫", "file://configs/feimao.json"},
+                    {"王二小", "file://configs/wangerxiao.json"},
+                    {"老刘备", "file://configs/laoliubei.json"},
+                    {"小马", "file://configs/xiaoma.json"},
+                    {"认歌", "file://configs/ouge.json"},
+                    {"4K小盒子", "file://configs/4k.json"},
+                    {"小盒子单仓", "file://configs/xiaohezi.json"},
+                    {"拾光多仓", "file://configs/shiguang.json"},
+                    {"挺好多仓", "file://configs/tinghao.json"},
             };
+            for (String[] e : sources) {
+                // 内置源以 APK 版本为准，无条件覆盖（旧 seed 是 gh-proxy 远程 URL）
+                apiMap.put(e[0], e[1]);
+                if (!apiNameHistory.contains(e[0])) apiNameHistory.add(e[0]);
+            }
             for (String[] e : sources) {
                 if (!apiMap.containsKey(e[0])) apiMap.put(e[0], e[1]);
                 if (!apiNameHistory.contains(e[0])) apiNameHistory.add(e[0]);
@@ -292,6 +300,27 @@ public class App extends MultiDexApplication {
             LOG.i("echo-bundled-config released");
         } catch (Throwable th) {
             LOG.i("echo-bundled-config failed " + th);
+        }
+        // NOTE(2026-10-25): 释放内置多仓源配置 assets/configs/*.json 到 filesDir/configs/
+        // （/file/ 端点 sdcard 缺失时回退 filesDir 同路径，电视重启清 sdcard 后切换列表仍可用）
+        try {
+            String[] cfgs = getAssets().list("configs");
+            if (cfgs != null && cfgs.length > 0) {
+                java.io.File dir = new java.io.File(getFilesDir(), "configs");
+                dir.mkdirs();
+                for (String c : cfgs) {
+                    java.io.InputStream cis = getAssets().open("configs/" + c);
+                    java.io.FileOutputStream cfos = new java.io.FileOutputStream(new java.io.File(dir, c), false);
+                    byte[] tmp2 = new byte[8192];
+                    int n2;
+                    while ((n2 = cis.read(tmp2)) != -1) cfos.write(tmp2, 0, n2);
+                    cfos.close();
+                    cis.close();
+                }
+                LOG.i("echo-bundled-configs released " + cfgs.length);
+            }
+        } catch (Throwable th) {
+            LOG.i("echo-bundled-configs failed " + th);
         }
     }
 

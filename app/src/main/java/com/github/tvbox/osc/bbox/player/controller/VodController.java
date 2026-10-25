@@ -1294,14 +1294,14 @@ public class VodController extends BaseController {
         if (systemPlayer && url.startsWith("https")) {
             String body = adsRemoved ? RemoteServer.m3u8Content : content;
             RemoteServer.m3u8Content = com.github.tvbox.osc.bbox.util.Proxy.proxifyM3u8Lines(basePath, body);
-            listener.startPlayUrl(ControlManager.get().getAddress(true) + "proxyM3u8", headers);
+            listener.startPlayUrl(ControlManager.get().getAddress(true) + "proxyM3u8/index.m3u8", headers);
             if (adsRemoved) {
                 Toast.makeText(getContext(), "已移除视频广告 " + M3u8.currentAdCount + " 条", Toast.LENGTH_SHORT).show();
             }
             return;
         }
         if (adsRemoved) {
-            listener.startPlayUrl(ControlManager.get().getAddress(true) + "proxyM3u8", headers);
+            listener.startPlayUrl(ControlManager.get().getAddress(true) + "proxyM3u8/index.m3u8", headers);
             Toast.makeText(getContext(), "已移除视频广告 " + M3u8.currentAdCount + " 条", Toast.LENGTH_SHORT).show();
         } else {
             LOG.i("echo-m3u8内容解析：未检测到广告");

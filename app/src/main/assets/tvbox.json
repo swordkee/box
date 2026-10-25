@@ -305,8 +305,7 @@
       "http://38.75.136.137:98/gslb/dsdqpub/sjdl.m3u8?auth=testpub"
      ]
     }
-   ],
-   "playerType": 0
+   ]
   },
   {
    "group": "国内IPTV",
@@ -497,8 +496,7 @@
       "http://63.141.230.178:82/gslb/zbdq5.m3u8?id=lbssxj"
      ]
     }
-   ],
-   "playerType": 0
+   ]
   },
   {
    "group": "其他",
@@ -623,8 +621,7 @@
       "http://38.64.72.148/hls/modn/list/4005/playlist.m3u8"
      ]
     }
-   ],
-   "playerType": 0
+   ]
   }
  ],
  "flags": [

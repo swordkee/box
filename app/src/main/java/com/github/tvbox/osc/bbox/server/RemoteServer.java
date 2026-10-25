@@ -102,6 +102,9 @@ public class RemoteServer extends NanoHTTPD {
 
     private Response getProxy(Object[] rs){
         try {
+            // null 兜底：上游处理失败（无 jar/参数缺失）时返回 404 而不是 NPE
+            if (rs == null) return NanoHTTPD.newFixedLengthResponse(
+                    NanoHTTPD.Response.Status.NOT_FOUND, NanoHTTPD.MIME_PLAINTEXT, "proxy: no handler");
             if (rs[0] instanceof NanoHTTPD.Response) return (NanoHTTPD.Response) rs[0];
             int code = (int) rs[0];
             String mime = (String) rs[1];
@@ -143,6 +146,7 @@ public class RemoteServer extends NanoHTTPD {
                 }
                 if (fileName.equals("/proxy")) {
                     Map<String, String> params = session.getParms();
+                    com.github.tvbox.osc.bbox.util.LOG.i("echo-proxy-hit " + fileName + " " + session.getQueryParameterString());
                     params.putAll(session.getHeaders());
                     if (params.containsKey("do")) {
                         Object[] rs = ApiConfig.get().proxyLocal(params);
@@ -167,7 +171,8 @@ public class RemoteServer extends NanoHTTPD {
                         } else {
                             // NOTE(2026-10-24 API15 port): /mnt/sdcard 被电视重启清空，文件缺失时回退到
                             // app 私有目录的同名备份，保证重启后仍能自主加载内置配置
-                            if (!f.contains("/")) {
+                            // NOTE(2026-10-25): 回退支持子路径（configs/feimao.json），拒绝 .. 防穿越
+                            if (!f.contains("..")) {
                                 File backup = new File(App.getInstance().getFilesDir(), f);
                                 if (backup.exists() && backup.isFile()) {
                                     return NanoHTTPD.newChunkedResponse(NanoHTTPD.Response.Status.OK, "application/octet-stream", new FileInputStream(backup));
