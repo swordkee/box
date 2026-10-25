@@ -7,3 +7,6 @@ adbConnect.bat
 build.sh
 Release/
 app/proguardMapping.txt
+
+# DLNA WIP（源切换/播放器批次后恢复）
+.dlna-wip/

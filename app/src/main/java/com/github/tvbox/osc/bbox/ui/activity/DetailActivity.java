@@ -136,6 +136,7 @@ public class DetailActivity extends BaseActivity {
     private boolean isReverse;
     private String preFlag="";
     private boolean firstReverse;
+    private boolean defaultReverseApplied; // 剧集列表默认倒序，仅每个详情页会话执行一次
     private V7GridLayoutManager mGridViewLayoutMgr = null;
     private HashMap<String, String> mCheckSources = null;
     private final ArrayList<String> seriesGroupOptions = new ArrayList<>();
@@ -587,6 +588,16 @@ public class DetailActivity extends BaseActivity {
     void refreshList() {
         if (vodInfo.seriesMap.get(vodInfo.playFlag).size() <= vodInfo.playIndex) {
             vodInfo.playIndex = 0;
+        }
+        // NOTE(2026-10-25): 默认倒序——最新集在首屏；playIndex 镜像保证「继续播放」仍指向上次那集
+        if (!defaultReverseApplied && vodInfo.seriesMap.get(vodInfo.playFlag) != null
+                && vodInfo.seriesMap.get(vodInfo.playFlag).size() > 1) {
+            defaultReverseApplied = true;
+            vodInfo.reverseSort = true;
+            isReverse = true;
+            tvSeriesSort.setText("倒序");
+            vodInfo.reverse();
+            vodInfo.playIndex = (vodInfo.seriesMap.get(vodInfo.playFlag).size() - 1) - vodInfo.playIndex;
         }
 
         if (vodInfo.seriesMap.get(vodInfo.playFlag) != null) {

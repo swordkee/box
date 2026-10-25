@@ -67,6 +67,7 @@ import java.lang.reflect.Field;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 
@@ -305,7 +306,7 @@ public class HomeActivity extends BaseActivity {
             public boolean onLongClick(View v) {
                 if (dataInitOk && jarInitOk) {
                     Intent intent = new Intent(getApplicationContext(), HomeActivity.class);
-                    intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                    intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
                     Bundle bundle = new Bundle();
                     bundle.putBoolean("useCache", true);
                     intent.putExtras(bundle);
@@ -740,54 +741,96 @@ public class HomeActivity extends BaseActivity {
         ControlManager.get().stopServer();
     }
 
-    private SelectDialog<SourceBean> mSiteSwitchDialog;
+    private SelectDialog<SwitchItem> mSiteSwitchDialog;
+
+    /** 菜单键切换列表条目：配置源（configUrl 非空）或当前配置内的站点 */
+    public static class SwitchItem {
+        public final String name;
+        public final SourceBean site;
+        public final String configName;
+        public final String configUrl;
+
+        SwitchItem(SourceBean s) { name = s.getName(); site = s; configName = null; configUrl = null; }
+        SwitchItem(String n, String u) { name = n; site = null; configName = n; configUrl = u; }
+    }
 
     void showSiteSwitch() {
+        // NOTE(2026-10-25): 顶部插入内置配置源（API_MAP，file:// 本地零网络依赖），
+        // 原先换配置源要 设置→线路配置→历史列表 三层，电视上不可发现
+        java.util.ArrayList<SwitchItem> items = new java.util.ArrayList<>();
+        ArrayList<String> nameHistory = Hawk.get(HawkConfig.API_NAME_HISTORY, new ArrayList<String>());
+        HashMap<String, String> apiMap = Hawk.get(HawkConfig.API_MAP, new HashMap<String, String>());
+        String currentApi = Hawk.get(HawkConfig.API_NAME, "");
+        int select = -1;
+        for (String n : nameHistory) {
+            String u = apiMap.containsKey(n) ? apiMap.get(n) : n;
+            items.add(new SwitchItem("【源】" + n, u));
+            if (n.equals(currentApi)) select = items.size() - 1;
+        }
         List<SourceBean> sites = ApiConfig.get().getSwitchSourceBeanList();
-        if (sites.isEmpty()) return;
-        int select = sites.indexOf(ApiConfig.get().getHomeSourceBean());
-        if (select < 0 || select >= sites.size()) select = 0;
+        for (SourceBean sb : sites) {
+            items.add(new SwitchItem(sb));
+            if (select < 0 && sb == ApiConfig.get().getHomeSourceBean()) select = items.size() - 1;
+        }
+        if (items.isEmpty()) return;
+        if (select < 0) select = 0;
         if (mSiteSwitchDialog == null) {
             mSiteSwitchDialog = new SelectDialog<>(HomeActivity.this);
             TvRecyclerView tvRecyclerView = mSiteSwitchDialog.findViewById(R.id.list);
-            // 根据 sites 数量动态计算列数
-            int spanCount = (int) Math.floor(sites.size() / 20.0);
+            // 根据 items 数量动态计算列数
+            int spanCount = (int) Math.floor(items.size() / 20.0);
             spanCount = Math.min(spanCount, 2);
             tvRecyclerView.setLayoutManager(new V7GridLayoutManager(mSiteSwitchDialog.getContext(), spanCount + 1));
             // 设置对话框宽度
             ConstraintLayout cl_root = mSiteSwitchDialog.findViewById(R.id.cl_root);
             ViewGroup.LayoutParams clp = cl_root.getLayoutParams();
             clp.width = AutoSizeUtils.mm2px(mSiteSwitchDialog.getContext(), 380 + 200 * spanCount);
-            mSiteSwitchDialog.setTip("请选择首页数据源");
+            mSiteSwitchDialog.setTip("选择配置源（【源】）/ 片源");
         }
-        mSiteSwitchDialog.setAdapter(new SelectDialogAdapter.SelectDialogInterface<SourceBean>() {
+        mSiteSwitchDialog.setAdapter(new SelectDialogAdapter.SelectDialogInterface<SwitchItem>() {
             @Override
-            public void click(SourceBean value, int pos) {
-                ApiConfig.get().setSourceBean(value);
-                refreshHome();
+            public void click(SwitchItem value, int pos) {
+                if (value.site != null) {
+                    ApiConfig.get().setSourceBean(value.site);
+                    refreshHome();
+                } else {
+                    switchConfig(value.configName, value.configUrl);
+                }
             }
             @Override
-            public String getDisplay(SourceBean val) {
-                return val.getName();
+            public String getDisplay(SwitchItem val) {
+                return val.name;
             }
-        }, new DiffUtil.ItemCallback<SourceBean>() {
+        }, new DiffUtil.ItemCallback<SwitchItem>() {
             @Override
-            public boolean areItemsTheSame(@NonNull SourceBean oldItem, @NonNull SourceBean newItem) {
+            public boolean areItemsTheSame(@NonNull SwitchItem oldItem, @NonNull SwitchItem newItem) {
                 return oldItem == newItem;
             }
 
             @Override
-            public boolean areContentsTheSame(@NonNull SourceBean oldItem, @NonNull SourceBean newItem) {
-                return oldItem.getKey().equals(newItem.getKey());
+            public boolean areContentsTheSame(@NonNull SwitchItem oldItem, @NonNull SwitchItem newItem) {
+                return oldItem.name.equals(newItem.name);
             }
-        }, sites, select);
+        }, items, select);
         mSiteSwitchDialog.show();
+    }
+
+    /** 切换配置源：写 API_NAME/API_URL 后整页重启并强制重载配置（useCache=false） */
+    private void switchConfig(String name, String url) {
+        Hawk.put(HawkConfig.API_NAME, name);
+        Hawk.put(HawkConfig.API_URL, url);
+        Intent intent = new Intent(getApplicationContext(), HomeActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        Bundle bundle = new Bundle();
+        bundle.putBoolean("useCache", false);
+        intent.putExtras(bundle);
+        HomeActivity.this.startActivity(intent);
     }
 
     private void refreshHome()
     {
         Intent intent = new Intent(getApplicationContext(), HomeActivity.class);
-        intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         Bundle bundle = new Bundle();
         bundle.putBoolean("useCache", true);
         intent.putExtras(bundle);

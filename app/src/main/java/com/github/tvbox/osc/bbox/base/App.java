@@ -152,13 +152,14 @@ public class App extends MultiDexApplication {
         putDefault(HawkConfig.DEBUG_OPEN, false);
         // NOTE(2026-10-25): 硬解优先（系统 CmpbPlayer OMX），https 流由 m3u8 反代改写为本地 http 喂流；
         // ijk 软解在此 CPU 上卡成 PPT，仅作硬解失败回退。老安装 Hawk 已存 1，用哨兵键做一次性迁移。
-        if (!Hawk.contains("play_type_hw_migrated_v2")) {
-            // Hawk.put 强制覆盖（putDefault 对已存在的 PLAY_TYPE=1 不生效）
+        if (!Hawk.contains("play_type_hw_migrated_v3")) {
+            // NOTE(2026-10-25 实测裁决): ijk 软解在此 GPU 上色差+顿卡，exo 需 MediaCodec(API16+)，
+            // 只有系统 CmpbPlayer 硬解可用——强制全局默认系统播放器，内置源 playerType 已统一 -1
             Hawk.put(HawkConfig.PLAY_TYPE, 0);
             // M3U8_PURIFY=false 走 goPlayUrl 直连，无 proxify，硬解拉不动 https → 强制走 purify/proxify 路径
             Hawk.put(HawkConfig.M3U8_PURIFY, true);
-            Hawk.put("play_type_hw_migrated_v2", true);
-            LOG.i("echo-play-type migrated v2: hw-decode-first + m3u8-purify");
+            Hawk.put("play_type_hw_migrated_v3", true);
+            LOG.i("echo-play-type migrated v3: hw-decode-only default");
         }
         putDefault(HawkConfig.HOME_REC, 1);
         // 默认渲染方式：推荐手机使用0-texture，电视1-surface

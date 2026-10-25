@@ -240,3 +240,17 @@
 -dontwarn org.bouncycastle.**
 -keep class com.github.tvbox.osc.bbox.util.BcTls$* { *; }
 -keep class com.github.tvbox.osc.bbox.util.BcTls { *; }
+
+
+#############################################
+#
+# NOTE(2026-10-25): DLNA (cling 2.1.2) —— 注解反射依赖 + jetty/servlet 传递依赖裁剪
+#
+#############################################
+-keep class org.fourthline.cling.** { *; }
+-keep class org.seamless.** { *; }
+-dontwarn org.eclipse.jetty.**
+-dontwarn javax.servlet.**
+-dontwarn javax.naming.**
+-dontwarn org.seamless.**
+-dontwarn org.fourthline.cling.**

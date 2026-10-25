@@ -20,7 +20,7 @@
       "key": "小胡",
       "name": "🔥┃小胡┃4K",
       "type": 1,
-      "playerType": 1,
+      "playerType": -1,
       "api": "http://xh1.xn--yetu07f.icu/api.php/provide/vod/",
       "jar": "http://xiaohu.xzam.cn/jar/1.jar"
     },
@@ -39,7 +39,7 @@
       "name": "🧲┃SeedHub┃4k",
       "type": 3,
       "api": "csp_SeedHub",
-      "playerType": 1,
+      "playerType": -1,
       "searchable": 1,
       "quickSearch": 1,
       "filterable": 1,
@@ -195,7 +195,7 @@
       "name": "🎃┃南瓜┃App",
       "type": 3,
       "api": "csp_NanGua",
-      "playerType": 2,
+      "playerType": -1,
       "searchable": 1,
       "quickSearch": 1,
       "changeable": 1
@@ -215,7 +215,7 @@
       "name": "💥┃繁星┃App",
       "type": 3,
       "api": "csp_AppMao",
-      "playerType": 2,
+      "playerType": -1,
       "searchable": 1,
       "quickSearch": 1,
       "changeable": 1,
@@ -263,7 +263,7 @@
       "name": "🎀┃九六┃直连",
       "type": 3,
       "api": "csp_Cs1369",
-      "playerType": 2,
+      "playerType": -1,
       "searchable": 1,
       "quickSearch": 1,
       "changeable": 1
@@ -300,7 +300,7 @@
       "name": "💡┃天天┃影视",
       "type": 3,
       "api": "csp_TTian",
-      "playerType": 1,
+      "playerType": -1,
       "ext": "http://op.ysdqjs.cn",
       "jar": "http://tv.nxog.top/m/jar.php?id=ou;md5;59a98ed1869e26027a3ff8d6070003f8"
     },
@@ -598,7 +598,7 @@
       "name": "📽推送",
       "type": 3,
       "api": "csp_PushAgent",
-      "playerType": 1,
+      "playerType": -1,
       "searchable": 1,
       "quickSearch": 1,
       "filterable": 0,
@@ -610,7 +610,7 @@
     {
       "name": "直播",
       "type": 0,
-      "playerType": 1,
+      "playerType": -1,
       "url": "http://xhztv.top/njyy.txt",
       "epg": "https://epg.112114.xyz/?ch={name}&date={date}",
       "logo": "https://epg.112114.xyz/logo/{name}.png"

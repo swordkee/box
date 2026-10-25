@@ -71,7 +71,7 @@
       "quickSearch": 1,
       "filterable": 1,
       "changeable": 1,
-      "playerType": 2
+      "playerType": -1
     },
     {
       "key": "天涯采集",
@@ -86,7 +86,7 @@
       "quickSearch": 1,
       "filterable": 1,
       "changeable": 1,
-      "playerType": 2
+      "playerType": -1
     },
     {
       "key": "量子",
@@ -247,7 +247,7 @@
       "quickSearch": 1,
       "filterable": 1,
       "changeable": 1,
-      "playerType": 2
+      "playerType": -1
     },
     {
       "key": "率率",
@@ -483,7 +483,7 @@
         "type": "rect",
         "ratio": 1
       },
-      "playerType": 2,
+      "playerType": -1,
       "searchable": 1,
       "quickSearch": 0,
       "changeable": 0
@@ -525,7 +525,7 @@
       "type": 3,
       "api": "csp_JPJGuard",
       "timeout": 10,
-      "playerType": 2,
+      "playerType": -1,
       "searchable": 1,
       "quickSearch": 1,
       "changeable": 0
@@ -536,7 +536,7 @@
       "type": 3,
       "api": "csp_NewCzGuard",
       "timeout": 10,
-      "playerType": 2,
+      "playerType": -1,
       "searchable": 1,
       "quickSearch": 1,
       "changeable": 1
@@ -547,7 +547,7 @@
       "type": 3,
       "api": "csp_JpysGuard",
       "timeout": 10,
-      "playerType": 2,
+      "playerType": -1,
       "searchable": 1,
       "quickSearch": 1,
       "changeable": 1
@@ -558,7 +558,7 @@
       "type": 3,
       "api": "csp_YCyzGuard",
       "timeout": 15,
-      "playerType": 1,
+      "playerType": -1,
       "searchable": 1,
       "quickSearch": 1,
       "changeable": 1
@@ -589,7 +589,7 @@
       "type": 3,
       "api": "csp_AppTTGuard",
       "timeout": 10,
-      "playerType": 2,
+      "playerType": -1,
       "searchable": 1,
       "quickSearch": 1,
       "changeable": 1,
@@ -1318,35 +1318,35 @@
       "name": "咪咕",
       "type": 0,
       "url": "https://develop202.github.io/migu_video/interface.txt",
-      "playerType": 2,
+      "playerType": -1,
       "timeout": 10
     },
     {
       "name": "手动不知何时更新",
       "type": 0,
       "url": "https://szyyds.cn/tv/live/x.txt",
-      "playerType": 2,
+      "playerType": -1,
       "timeout": 10
     },
     {
       "name": "有效期27年7月",
       "type": 0,
       "url": "http://m.szyyds.cn/api.php?token=8664f352657e8b13585bcf0f84fc3512",
-      "playerType": 2,
+      "playerType": -1,
       "timeout": 10
     },
     {
       "name": "自动更新",
       "type": 0,
       "url": "https://z.szyyds.cn/iptv",
-      "playerType": 2,
+      "playerType": -1,
       "timeout": 10
     },
     {
       "name": "音乐所",
       "type": 0,
       "url": "https://szyyds.cn/tv/live/yy.txt",
-      "playerType": 2,
+      "playerType": -1,
       "timeout": 10
     },
     {
@@ -1354,7 +1354,7 @@
       "type": 3,
       "api": "csp_AweSomeGuard",
       "url": "yqk",
-      "playerType": 2,
+      "playerType": -1,
       "ext": {
         "sp": "Huya"
       },
@@ -1364,7 +1364,7 @@
       "name": "肥羊虎牙一起看",
       "type": 0,
       "url": "http://127.0.0.1:9978/proxy?do=live&url=https://x.szyyds.cn/huyayqk.m3u",
-      "playerType": 2,
+      "playerType": -1,
       "timeout": 10,
       "ua": "okHttp/Mod-1.4.0.0"
     },
@@ -1372,7 +1372,7 @@
       "name": "肥羊B站直播",
       "type": 0,
       "url": "http://127.0.0.1:9978/proxy?do=live&url=https://x.szyyds.cn/bililive.m3u",
-      "playerType": 2,
+      "playerType": -1,
       "timeout": 10,
       "ua": "okHttp/Mod-1.4.0.0"
     },
@@ -1380,7 +1380,7 @@
       "name": "肥羊斗鱼一起看",
       "type": 0,
       "url": "http://127.0.0.1:9978/proxy?do=live&url=https://x.szyyds.cn/douyuyqk.m3u",
-      "playerType": 2,
+      "playerType": -1,
       "timeout": 10,
       "ua": "okHttp/Mod-1.4.0.0"
     },
@@ -1388,7 +1388,7 @@
       "name": "肥羊YY轮播",
       "type": 0,
       "url": "http://127.0.0.1:9978/proxy?do=live&url=https://x.szyyds.cn/yylunbo.m3u",
-      "playerType": 2,
+      "playerType": -1,
       "timeout": 10,
       "ua": "okHttp/Mod-1.4.0.0"
     }

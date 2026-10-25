@@ -107,6 +107,9 @@ task DEBUG_APP(type: Exec) {
 
 dependencies {
     // NOTE(2026-10-24 API15 port): BouncyCastle 轻量 TLS 栈（TLS1.2/1.3，不依赖平台 JCA）
+    // NOTE(2026-10-25): DLNA 接收/投放（cling 2.1.2 官方支持 API 15）——WIP 挂起，恢复时取消注释
+    // implementation 'org.fourthline.cling:cling-core:2.1.2'
+    // implementation 'org.fourthline.cling:cling-support:2.1.2'
     implementation 'org.bouncycastle:bcprov-jdk15to18:1.78.1'
     implementation 'org.bouncycastle:bctls-jdk15to18:1.78.1'
     implementation 'org.bouncycastle:bcutil-jdk15to18:1.78.1'
