@@ -254,3 +254,9 @@
 -dontwarn javax.naming.**
 -dontwarn org.seamless.**
 -dontwarn org.fourthline.cling.**
+
+# NOTE(2026-10-25): DLNA 本地服务类必须整类保留——cling 通过反射读 @UpnpAction/@UpnpStateVariable
+# 并反射调用方法，R8 看不到这些引用会裁剪方法 → SCPD actionList 为空 → 手机端判定设备不可用
+-keep class com.github.tvbox.osc.bbox.dlna.** { *; }
+-keepclassmembers class com.github.tvbox.osc.bbox.dlna.** { *; }
+-keepattributes RuntimeVisibleAnnotations,RuntimeVisibleParameterAnnotations,AnnotationDefault,Signature,Exceptions,InnerClasses,EnclosingMethod

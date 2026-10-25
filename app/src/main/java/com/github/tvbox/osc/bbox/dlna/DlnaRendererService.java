@@ -74,7 +74,8 @@ public class DlnaRendererService extends Service {
             rootLogger.setLevel(java.util.logging.Level.FINE);
             java.util.logging.Logger.getLogger("org.fourthline.cling").setLevel(java.util.logging.Level.FINE);
             // NOTE: 构造即启动（UpnpServiceImpl 构造内含 startup）
-            AndroidUpnpServiceConfiguration cfg = new AndroidUpnpServiceConfiguration(0) {
+            // 固定 stream server 端口（desc 的 URLBase 需要已知端口；49152 为 UPnP 惯例起始）
+            AndroidUpnpServiceConfiguration cfg = new AndroidUpnpServiceConfiguration(49152) {
                 @Override
                 public org.fourthline.cling.model.types.ServiceType[] getExclusiveServiceTypes() {
                     // 只关心这些服务类型，降低 registry 维护开销
@@ -117,12 +118,19 @@ public class DlnaRendererService extends Service {
 
             UDN udn = new UDN(UUID.nameUUIDFromBytes("tvbox-bbox-dlna-renderer".getBytes("UTF-8")));
             String friendly = "TVBox (" + Build.MODEL + ")";
+            // NOTE(2026-10-25): 显式 URLBase——国内视频 App（抖音系）投屏实现要求 desc 带绝对 URLBase，
+            // 否则拉完 desc 不前进到 SCPD/control（实测）
+            String localIp = pickIpv4();
+            java.net.URL baseURL = new java.net.URL("http://" + localIp + ":49152");
+            LOG("device baseURL: " + baseURL);
             LocalDevice device = new LocalDevice(
                     new DeviceIdentity(udn),
                     new UDADeviceType("MediaRenderer", 1),
-                    new DeviceDetails(friendly,
+                    new DeviceDetails(baseURL,
+                            friendly,
                             new ManufacturerDetails("tvbox-bbox"),
                             new ModelDetails("TVBox MediaRenderer", "API15 DLNA renderer", "1.0"),
+                            null, null, null,
                             new DLNADoc[] { new DLNADoc("DMR", DLNADoc.Version.V1_5) },
                             new DLNACaps(new String[] {"DLNA.ORG_OP=01", "DLNA.ORG_CI=0"})),
                     new LocalService[]{avTransport, connectionManager});
@@ -163,6 +171,26 @@ public class DlnaRendererService extends Service {
             this.msg = msg;
             this.seekTarget = seekTarget;
         }
+    }
+
+    /** 取 wlan0/eth0 的 IPv4（描述文档 URLBase 用） */
+    private static String pickIpv4() {
+        try {
+            for (java.util.Enumeration<java.net.NetworkInterface> nifs =
+                         java.net.NetworkInterface.getNetworkInterfaces(); nifs.hasMoreElements(); ) {
+                java.net.NetworkInterface nif = nifs.nextElement();
+                String name = nif.getName() == null ? "" : nif.getName();
+                if (!nif.isUp() || nif.isLoopback()) continue;
+                if (!(name.startsWith("wlan") || name.startsWith("eth"))) continue;
+                for (java.net.InterfaceAddress ia : nif.getInterfaceAddresses()) {
+                    if (ia.getAddress() instanceof java.net.Inet4Address) {
+                        return ia.getAddress().getHostAddress();
+                    }
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return "127.0.0.1";
     }
 
     private static void LOG(String s) {

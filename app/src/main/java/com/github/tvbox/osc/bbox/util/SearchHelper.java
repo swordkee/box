@@ -24,6 +24,19 @@ public class SearchHelper {
         }
         if (mCheckSources == null || mCheckSources.isEmpty()) {
             mCheckSources = getSources();
+        } else {
+            // NOTE(2026-10-25): 勾选集与当前配置站点无交集（换过源/源被删）→ 搜索会永远为空，
+            // 回退为全部站点，避免「搜索不到任何内容」
+            HashMap<String, String> all = getSources();
+            if (all != null && !all.isEmpty()) {
+                boolean intersect = false;
+                for (String k : mCheckSources.keySet()) {
+                    if (all.containsKey(k)) { intersect = true; break; }
+                }
+                if (!intersect) {
+                    mCheckSources = all;
+                }
+            }
         }
 //        else {
 //            HashMap<String, String> newSources = getSources();

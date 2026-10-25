@@ -124,7 +124,7 @@ public class HomeActivity extends BaseActivity {
                     com.github.tvbox.osc.bbox.util.LOG.e("DLNA service start: " + th);
                 }
             }
-        }, 4000);
+        }, 60000); // 60s：避开启动高峰（海信 IgrsWatchDog 对启动超时 app 会动手，实测 4s 仍冲突）
     }
 
     private static final int REQUEST_EXTERNAL_STORAGE = 1;
@@ -748,13 +748,10 @@ public class HomeActivity extends BaseActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (RECREATING) {
-            // NOTE(2026-10-25): 换源/换片源的重建销毁——进程必须存活，RemoteServer(9978) 继续服务新实例
-            return;
-        }
+        // NOTE(2026-10-25): 这里绝不能自杀进程——原版 appExit(0)=killProcess+System.exit 是历史遗留，
+        // 任何 Activity 重建（换源/换片源/配置变化）都会触发 onDestroy → 进程被误杀（用户所见『关APP』）。
+        // 用户主动退出由 doExit()（双按返回键）处理。
         EventBus.getDefault().unregister(this);
-        AppManager.getInstance().appExit(0);
-        ControlManager.get().stopServer();
     }
 
     /** 换源/换片源走 CLEAR_TASK 重建，旧实例 onDestroy 时不得自杀进程（appExit） */

@@ -378,6 +378,15 @@ public class ApiConfig {
     }
 
     public void loadJar(boolean useCache, String spider, LoadConfigCallback callback) {
+        // NOTE(2026-10-25): 相对 jar（./ztha.jar）按当前配置 URL 目录解析——内置配置（file://）+
+        // 同目录 jar 才能命中；不这样会拼成 http://./ztha.jar → 404 → 无站点无搜索
+        if (spider != null && spider.startsWith("./")) {
+            String cfgUrl = Hawk.get(HawkConfig.API_URL, "");
+            if (!cfgUrl.isEmpty()) {
+                int slash = cfgUrl.lastIndexOf('/');
+                if (slash > 0) spider = cfgUrl.substring(0, slash + 1) + spider.substring(2);
+            }
+        }
         String[] urls = spider.split(";md5;");
         String jarUrl = urls[0];
         String md5 = urls.length > 1 ? urls[1].trim() : "";

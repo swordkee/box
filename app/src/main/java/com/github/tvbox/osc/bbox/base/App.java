@@ -178,19 +178,45 @@ public class App extends MultiDexApplication {
         try {
             HashMap<String, String> apiMap = Hawk.get(HawkConfig.API_MAP, new HashMap<String, String>());
             ArrayList<String> apiNameHistory = Hawk.get(HawkConfig.API_NAME_HISTORY, new ArrayList<String>());
-            // NOTE(2026-10-25): 9 源配置 JSON 全部内置 assets/configs/（启动释放 filesDir），
+            // NOTE(2026-10-25): 自愈——已移除的崩溃源（dexopt SIGSEGV）残留在 Hawk 时重置回本地内置
+        try {
+            String cur = Hawk.get(HawkConfig.API_URL, "");
+            if (cur.contains("tinghao") || cur.contains("shiguang") || cur.contains("laoliubei")) {
+                Hawk.put(HawkConfig.API_URL, "file://tvbox.json");
+                Hawk.put(HawkConfig.API_NAME, "本地内置");
+                LOG.i("echo-config self-heal: reset to bundled tvbox.json (removed source " + cur + ")");
+            }
+            // 同时清掉 API_MAP 里这三项，避免列表再选到
+            HashMap<String, String> healMap = Hawk.get(HawkConfig.API_MAP, new HashMap<String, String>());
+            boolean dirty = false;
+            for (String k : new String[]{"老刘备", "拾光多仓", "挺好多仓"}) {
+                if (healMap.remove(k) != null) dirty = true;
+            }
+            ArrayList<String> healHistory = Hawk.get(HawkConfig.API_NAME_HISTORY, new ArrayList<String>());
+            dirty |= healHistory.remove("老刘备");
+            dirty |= healHistory.remove("拾光多仓");
+            dirty |= healHistory.remove("挺好多仓");
+            if (dirty) {
+                Hawk.put(HawkConfig.API_MAP, healMap);
+                Hawk.put(HawkConfig.API_NAME_HISTORY, healHistory);
+                LOG.i("echo-config self-heal: pruned removed sources from map");
+            }
+        } catch (Throwable th) {
+            LOG.e("config self-heal: " + th);
+        }
+
+        // NOTE(2026-10-25): 6 源内置 assets/configs/（启动释放 filesDir）。
+            // 已移除 老刘备/拾光/挺好——它们的 jar 在 dalvik dexopt 时 native crash(signal 11)，应用层无解
+            // 9 源配置 JSON 全部内置 assets/configs/（启动释放 filesDir），
             // 切换零网络依赖——gh-proxy.org 公共代理不稳定，远程切换不可靠
             String[][] sources = {
                     {"本地内置", "file://tvbox.json"},
                     {"肥猫", "file://configs/feimao.json"},
                     {"王二小", "file://configs/wangerxiao.json"},
-                    {"老刘备", "file://configs/laoliubei.json"},
                     {"小马", "file://configs/xiaoma.json"},
                     {"认歌", "file://configs/ouge.json"},
                     {"4K小盒子", "file://configs/4k.json"},
                     {"小盒子单仓", "file://configs/xiaohezi.json"},
-                    {"拾光多仓", "file://configs/shiguang.json"},
-                    {"挺好多仓", "file://configs/tinghao.json"},
             };
             for (String[] e : sources) {
                 // 内置源以 APK 版本为准，无条件覆盖（旧 seed 是 gh-proxy 远程 URL）
@@ -322,6 +348,32 @@ public class App extends MultiDexApplication {
             }
         } catch (Throwable th) {
             LOG.i("echo-bundled-configs failed " + th);
+        }
+        // NOTE(2026-10-25): 内置 jar 释放——相对路径 spider（./ztha.jar 等）内置成 file:// 配置后
+        // 基准变了会 404；按 loadJar 的 cache key（MD5(spider 相对串)）预置到 filesDir/csp，
+        // 配置 md5 与 jar 实际 md5 一致 → 缓存命中直接用，零网络
+        try {
+            // jar 与配置同目录（assets/configs/），loadJar 相对路径按配置目录解析
+            String[] bundledJars = {}; // 崩溃 jar 已移除，保留机制供将来内置可用 jar
+            java.io.File cfgDir = new java.io.File(getFilesDir(), "configs");
+            cfgDir.mkdirs();
+            for (String jarName : bundledJars) {
+                try {
+                    java.io.InputStream jis = getAssets().open("configs/" + jarName);
+                    java.io.FileOutputStream jfos = new java.io.FileOutputStream(
+                            new java.io.File(cfgDir, jarName), false);
+                    byte[] jtmp = new byte[8192];
+                    int jn;
+                    while ((jn = jis.read(jtmp)) != -1) jfos.write(jtmp, 0, jn);
+                    jfos.close();
+                    jis.close();
+                } catch (Throwable th) {
+                    LOG.i("echo-bundled-jar miss " + jarName + ": " + th);
+                }
+            }
+            LOG.i("echo-bundled-jars released");
+        } catch (Throwable th) {
+            LOG.i("echo-bundled-jars failed " + th);
         }
     }
 
