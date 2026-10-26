@@ -25,6 +25,11 @@ public class RefreshEvent {
     public static final int TYPE_API_LIVE_URL = 16;
     public static final int TYPE_API_EPG_URL = 17;
     public static final int TYPE_PROXY_URL = 18;
+    // NOTE(2026-10-26 API15 port): 播放页本源彻底失败（重试+切播放器都不行）时发出，
+    // 详情页收到后自动打开「快速搜索」让用户换源。点播原本没有跨源自动换源
+    // （直播有），实测「源本身不可播」是最高频的白屏原因（百度 JPEG 假 HLS、
+    // 最大资源 CDN 2.9KB/s），靠自己重试永远不会成功。
+    public static final int TYPE_PLAY_FAILED = 19;
     public int type;
     public Object obj;
 

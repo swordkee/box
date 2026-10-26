@@ -799,6 +799,11 @@ public class DetailActivity extends BaseActivity {
                         seriesFlagAdapter.setNewData(vodInfo.seriesFlags);
                         mGridViewFlag.scrollToPosition(flagScrollTo);
 
+                        // NOTE(2026-10-26 API15 port): 跨源换源后对齐原来看的那一集。
+                        // 新源的集数/命名通常与旧源不同（标题可能带全角空格等），
+                        // 先按集名精确/包含匹配，匹配不上再按原序号夹取，最后才回第 0 集。
+                        applyPendingSeries();
+
                         refreshList();
                         if (showPreview) {
                             jumpToPlay();
@@ -821,6 +826,54 @@ public class DetailActivity extends BaseActivity {
                 }
             }
         });
+    }
+
+    /**
+     * 跨源换源后把播放集对齐到原来那一集。
+     * 优先级：集名完全相同 → 集名互相包含 → 原序号（夹到合法范围） → 第 0 集。
+     * 对齐后清空 pending，避免影响后续正常换集。
+     */
+    private void applyPendingSeries() {
+        if (pendingPlayIndex < 0 || vodInfo == null) return;
+        try {
+            List<VodInfo.VodSeries> list = vodInfo.seriesMap.get(vodInfo.playFlag);
+            if (list == null || list.isEmpty()) return;
+            int target = -1;
+            String want = pendingSeriesName == null ? "" : pendingSeriesName.replace(" ", "").replace("　", "").trim();
+            if (!want.isEmpty()) {
+                for (int i = 0; i < list.size(); i++) {
+                    String n = list.get(i).name;
+                    if (n != null && n.replace(" ", "").replace("　", "").trim().equals(want)) {
+                        target = i;
+                        break;
+                    }
+                }
+                if (target < 0) {
+                    for (int i = 0; i < list.size(); i++) {
+                        String n = list.get(i).name;
+                        if (n == null) continue;
+                        String nn = n.replace(" ", "").replace("　", "").trim();
+                        if (nn.contains(want) || want.contains(nn)) {
+                            target = i;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (target < 0) {
+                target = Math.min(pendingPlayIndex, list.size() - 1);
+            }
+            if (target >= 0) {
+                vodInfo.playIndex = target;
+                LOG.i("applyPendingSeries: 对齐到第 " + (target + 1) + " 集 (原 index=" + pendingPlayIndex
+                        + ", 旧集名=" + pendingSeriesName + ", 新集名=" + list.get(target).name + ")");
+            }
+        } catch (Throwable th) {
+            LOG.e("applyPendingSeries: " + th);
+        } finally {
+            pendingPlayIndex = -1;
+            pendingSeriesName = null;
+        }
     }
 
     private String getHtml(String label, String content) {
@@ -903,6 +956,45 @@ public class DetailActivity extends BaseActivity {
             } catch (Exception e) {
                 searchData(null);
             }
+        } else if (event.type == RefreshEvent.TYPE_PLAY_FAILED) {
+            // NOTE(2026-10-26 API15 port): 播放页本源彻底失败（重试+切播放器都不行）后
+            // 自动打开「快速搜索」，把同名影片在其它源的结果列出来让用户直接切。
+            // 点播原本没有跨源自动换源，而实测最高频的白屏原因就是「源本身不可播」。
+            onPlayFailed();
+        }
+    }
+
+    /** 播放失败 → 自动多源搜索换源（带节流，避免同一轮失败反复弹） */
+    private long lastPlayFailedAt = 0;
+    /** 跨源换源时用于对齐原来看的那一集 */
+    private String pendingSeriesName = null;
+    private int pendingPlayIndex = -1;
+
+    private void onPlayFailed() {
+        // 只处理详情页内预览播放（含全屏预览）的场景。独立 PlayActivity 时不在这里弹框，
+        // 否则会出现「当前 Activity 不在前台却弹 Dialog」。
+        if (!showPreview) return;
+        if (mVideo == null || mVideo.name == null || mVideo.name.isEmpty()) return;
+        if (isFinishing()) return;
+        long now = System.currentTimeMillis();
+        if (now - lastPlayFailedAt < 20000) return;  // 20 秒内只自动开一次
+        lastPlayFailedAt = now;
+        // 记住当前集，换源成功后尽量对齐（同源集数/命名不一致时回退同序号）
+        try {
+            if (vodInfo != null) {
+                pendingPlayIndex = vodInfo.playIndex;
+                VodInfo.VodSeries cur = vodInfo.getCurrentSeries();
+                pendingSeriesName = (cur == null || cur.name == null) ? null : cur.name;
+            }
+        } catch (Throwable th) {
+            pendingSeriesName = null;
+            pendingPlayIndex = -1;
+        }
+        try {
+            Toast.makeText(DetailActivity.this, "换个源试试…", Toast.LENGTH_SHORT).show();
+            tvQuickSearch.performClick();
+        } catch (Throwable th) {
+            LOG.e("onPlayFailed: " + th);
         }
     }
 

@@ -798,6 +798,7 @@ public class HomeActivity extends BaseActivity {
     public static volatile boolean RECREATING = false;
 
     private SelectDialog<SwitchItem> mSiteSwitchDialog;
+    private SelectDialogAdapter<SwitchItem> mSiteSwitchAdapter;
 
     /** 菜单键切换列表条目：配置源（configUrl 非空）或当前配置内的站点 */
     public static class SwitchItem {
@@ -808,9 +809,78 @@ public class HomeActivity extends BaseActivity {
 
         SwitchItem(SourceBean s) { name = s.getName(); site = s; configName = null; configUrl = null; }
         SwitchItem(String n, String u) { name = n; site = null; configName = n; configUrl = u; }
+
+        /**
+         * 展示名：片源后附健康探测结果（如「虎牙资源  320ms」「牛牛资源  空响应 ✗」）。
+         * 【源】配置项不探测——它们的可用性等于「本地文件是否存在」，恒可用。
+         */
+        String displayName() {
+            if (site == null) return name;
+            String h = com.github.tvbox.osc.bbox.util.SourceHealthChecker.label(site.getKey());
+            return h.isEmpty() ? name : (name + "  " + h);
+        }
     }
 
-    void showSiteSwitch() {
+    /**
+     * 对片源做健康探测：先显示已有缓存，后台补测未测过的，测完刷新弹框。
+     * 只在弹框仍可见时刷新，避免用户已关闭还在动 UI。
+     */
+    private void startSourceHealthProbe(List<SourceBean> sites) {
+        if (sites == null || sites.isEmpty()) return;
+        final java.util.ArrayList<SourceBean> need = new java.util.ArrayList<>();
+        for (SourceBean sb : sites) {
+            if (com.github.tvbox.osc.bbox.util.SourceHealthChecker.getCached(sb.getKey()) == null) {
+                need.add(sb);
+            }
+        }
+        if (need.isEmpty()) return;
+        com.github.tvbox.osc.bbox.util.SourceHealthChecker.checkAll(need,
+                new com.github.tvbox.osc.bbox.util.SourceHealthChecker.OnResult() {
+                    @Override
+                    public void onOne(SourceBean bean, com.github.tvbox.osc.bbox.util.SourceHealthChecker.Health health) {
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                refreshSiteSwitchItems();
+                            }
+                        });
+                    }
+
+                    @Override
+                    public void onDone() {
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                refreshSiteSwitchItems();
+                            }
+                        });
+                    }
+                });
+    }
+
+    /** 探测出结果后刷新弹框条目文字（不重建弹框，避免焦点跳动） */
+    private void refreshSiteSwitchItems() {
+        try {
+            if (mSiteSwitchDialog == null || !mSiteSwitchDialog.isShowing()) return;
+            if (mSiteSwitchAdapter == null) return;
+            // 只重设数据，不重新 show()：重建弹框会丢焦点，用户正在用遥控器选源时很跳
+            java.util.ArrayList<SwitchItem> items = buildSiteSwitchItems();
+            if (!items.isEmpty()) {
+                mSiteSwitchAdapter.setData(items, -1);
+            }
+        } catch (Throwable th) {
+            LOG.e("refreshSiteSwitchItems: " + th);
+        }
+    }
+
+    /** 当前选中项的原始下标（探测刷新后要还原，-1 表示不指定） */
+    private int mSiteSwitchSelect = -1;
+
+    /**
+     * 组装换源列表：【源】配置项（本地文件，恒可用）+ 片源（按探测结果排序）。
+     * select 下标会写入 mSiteSwitchSelect。
+     */
+    private java.util.ArrayList<SwitchItem> buildSiteSwitchItems() {
         // NOTE(2026-10-25): 顶部插入内置配置源（API_MAP，file:// 本地零网络依赖），
         // 原先换配置源要 设置→线路配置→历史列表 三层，电视上不可发现
         java.util.ArrayList<SwitchItem> items = new java.util.ArrayList<>();
@@ -824,12 +894,63 @@ public class HomeActivity extends BaseActivity {
             if (n.equals(currentApi)) select = items.size() - 1;
         }
         List<SourceBean> sites = ApiConfig.get().getSwitchSourceBeanList();
-        for (SourceBean sb : sites) {
-            items.add(new SwitchItem(sb));
-            if (select < 0 && sb == ApiConfig.get().getHomeSourceBean()) select = items.size() - 1;
+        // NOTE(2026-10-26 API15 port): 已探测过的片源按「可用优先、延迟低的靠前」排序，
+        // 让失效源（空响应/403）自然沉到列表后面——这是源测速最实用的价值。
+        // 未探测过的排中间（不知道好坏，但不放到最前误导用户）。
+        if (sites != null && sites.size() > 1) {
+            final java.util.HashMap<String, Integer> rank = new java.util.HashMap<>();
+            final java.util.HashMap<String, Long> costMap = new java.util.HashMap<>();
+            for (SourceBean sb : sites) {
+                com.github.tvbox.osc.bbox.util.SourceHealthChecker.Health h =
+                        com.github.tvbox.osc.bbox.util.SourceHealthChecker.getCached(sb.getKey());
+                if (h == null) {
+                    rank.put(sb.getKey(), 1);        // 未探测
+                } else if (h.ok) {
+                    rank.put(sb.getKey(), 0);        // 可用
+                    costMap.put(sb.getKey(), h.latencyMs);
+                } else {
+                    rank.put(sb.getKey(), 2);        // 失效
+                }
+            }
+            try {
+                java.util.Collections.sort(sites, new java.util.Comparator<SourceBean>() {
+                    @Override
+                    public int compare(SourceBean a, SourceBean b) {
+                        int ra = rank.containsKey(a.getKey()) ? rank.get(a.getKey()) : 1;
+                        int rb = rank.containsKey(b.getKey()) ? rank.get(b.getKey()) : 1;
+                        if (ra != rb) return ra - rb;
+                        long ca = costMap.containsKey(a.getKey()) ? costMap.get(a.getKey()) : 0;
+                        long cb = costMap.containsKey(b.getKey()) ? costMap.get(b.getKey()) : 0;
+                        return Long.compare(ca, cb);
+                    }
+                });
+            } catch (Throwable th) {
+                LOG.e("sort sites by health: " + th);
+            }
         }
+        if (sites != null) {
+            for (SourceBean sb : sites) {
+                items.add(new SwitchItem(sb));
+                if (select < 0 && sb == ApiConfig.get().getHomeSourceBean()) select = items.size() - 1;
+            }
+        }
+        mSiteSwitchSelect = select < 0 ? 0 : select;
+        return items;
+    }
+
+    void showSiteSwitch() {
+        java.util.ArrayList<SwitchItem> items = buildSiteSwitchItems();
         if (items.isEmpty()) return;
-        if (select < 0) select = 0;
+        int select = mSiteSwitchSelect;
+        // NOTE(2026-10-26 API15 port): 对片源（非【源】配置项）做健康探测，
+        // 把「320ms / 空响应 / 403 / 超时」直接标在名字后面，并按可用性排序。
+        // 实测各源失效形态差异极大（搜索接口空壳响应、403），不标出来只能一个个试。
+        // 先用缓存（不阻塞），再后台补测。
+        try {
+            startSourceHealthProbe(ApiConfig.get().getSwitchSourceBeanList());
+        } catch (Throwable th) {
+            LOG.e("startSourceHealthProbe: " + th);
+        }
         if (mSiteSwitchDialog == null) {
             mSiteSwitchDialog = new SelectDialog<>(HomeActivity.this);
             TvRecyclerView tvRecyclerView = mSiteSwitchDialog.findViewById(R.id.list);
@@ -841,33 +962,48 @@ public class HomeActivity extends BaseActivity {
             ConstraintLayout cl_root = mSiteSwitchDialog.findViewById(R.id.cl_root);
             ViewGroup.LayoutParams clp = cl_root.getLayoutParams();
             clp.width = AutoSizeUtils.mm2px(mSiteSwitchDialog.getContext(), 380 + 200 * spanCount);
-            mSiteSwitchDialog.setTip("选择配置源（【源】）/ 片源");
-        }
-        mSiteSwitchDialog.setAdapter(new SelectDialogAdapter.SelectDialogInterface<SwitchItem>() {
-            @Override
-            public void click(SwitchItem value, int pos) {
-                if (value.site != null) {
-                    ApiConfig.get().setSourceBean(value.site);
-                    refreshHome();
-                } else {
-                    switchConfig(value.configName, value.configUrl);
+            mSiteSwitchDialog.setTip("选择配置源（【源】）/ 片源（附探测结果）");
+            mSiteSwitchAdapter = new SelectDialogAdapter<>(new SelectDialogAdapter.SelectDialogInterface<SwitchItem>() {
+                @Override
+                public void click(SwitchItem value, int pos) {
+                    if (value.site != null) {
+                        ApiConfig.get().setSourceBean(value.site);
+                        refreshHome();
+                    } else {
+                        switchConfig(value.configName, value.configUrl);
+                    }
                 }
-            }
-            @Override
-            public String getDisplay(SwitchItem val) {
-                return val.name;
-            }
-        }, new DiffUtil.ItemCallback<SwitchItem>() {
-            @Override
-            public boolean areItemsTheSame(@NonNull SwitchItem oldItem, @NonNull SwitchItem newItem) {
-                return oldItem == newItem;
-            }
 
+                @Override
+                public String getDisplay(SwitchItem val) {
+                    return val.displayName();
+                }
+            }, new DiffUtil.ItemCallback<SwitchItem>() {
+                @Override
+                public boolean areItemsTheSame(@NonNull SwitchItem oldItem, @NonNull SwitchItem newItem) {
+                    return oldItem == newItem;
+                }
+
+                @Override
+                public boolean areContentsTheSame(@NonNull SwitchItem oldItem, @NonNull SwitchItem newItem) {
+                    // 比展示名而非 name：探测结果到达后要能触发条目刷新
+                    return oldItem.displayName().equals(newItem.displayName());
+                }
+            });
+            TvRecyclerView list = mSiteSwitchDialog.findViewById(R.id.list);
+            list.setAdapter(mSiteSwitchAdapter);
+        }
+        mSiteSwitchAdapter.setData(items, select);
+        TvRecyclerView list = mSiteSwitchDialog.findViewById(R.id.list);
+        list.setSelectedPosition(select);
+        final int fs = select;
+        list.post(new Runnable() {
             @Override
-            public boolean areContentsTheSame(@NonNull SwitchItem oldItem, @NonNull SwitchItem newItem) {
-                return oldItem.name.equals(newItem.name);
+            public void run() {
+                list.smoothScrollToPosition(fs);
+                list.setSelectionWithSmooth(fs);
             }
-        }, items, select);
+        });
         mSiteSwitchDialog.show();
     }
 
