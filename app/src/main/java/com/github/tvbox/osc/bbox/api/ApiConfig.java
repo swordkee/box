@@ -518,14 +518,30 @@ public class ApiConfig {
         wallpaper = DefaultConfig.safeJsonString(infoJson, "wallpaper", "");
         // 远端站点源
         SourceBean firstSite = null;
-        for (JsonElement opt : infoJson.get("sites").getAsJsonArray()) {
+        JsonElement sitesEl = infoJson.get("sites");
+        if (sitesEl == null || !sitesEl.isJsonArray()) {
+            LOG.e("parseJson: sites 缺失或非数组");
+            return;
+        }
+        for (JsonElement opt : sitesEl.getAsJsonArray()) {
             JsonObject obj = (JsonObject) opt;
+            // NOTE(2026-10-26): 原为裸 obj.get("key").getAsString() 等——任何字段缺失都会
+            // 抛异常导致整个配置解析失败（一张配置全废）。改为安全读取，跳过无效站点。
             SourceBean sb = new SourceBean();
-            String siteKey = obj.get("key").getAsString().trim();
+            String siteKey = DefaultConfig.safeJsonString(obj, "key", "");
+            if (siteKey.isEmpty()) {
+                LOG.e("parseJson: 站点缺 key，跳过");
+                continue;
+            }
             sb.setKey(siteKey);
-            sb.setName(obj.has("name")?obj.get("name").getAsString().trim():siteKey);
-            sb.setType(obj.get("type").getAsInt());
-            sb.setApi(obj.get("api").getAsString().trim());
+            sb.setName(obj.has("name") ? DefaultConfig.safeJsonString(obj, "name", siteKey) : siteKey);
+            sb.setType(DefaultConfig.safeJsonInt(obj, "type", 1));
+            String apiStr = DefaultConfig.safeJsonString(obj, "api", "");
+            if (apiStr.isEmpty()) {
+                LOG.e("parseJson: 站点 " + siteKey + " 缺 api，跳过");
+                continue;
+            }
+            sb.setApi(apiStr.trim());
             sb.setSearchable(DefaultConfig.safeJsonInt(obj, "searchable", 1));
             sb.setQuickSearch(DefaultConfig.safeJsonInt(obj, "quickSearch", 1));
             if(siteKey.startsWith("py_")){
@@ -562,7 +578,7 @@ public class ApiConfig {
         vipParseFlags = DefaultConfig.safeJsonStringList(infoJson, "flags");
         // 解析地址
         parseBeanList.clear();
-        if(infoJson.has("parses")){
+        if(infoJson.has("parses") && infoJson.get("parses").isJsonArray()){
             JsonArray parses = infoJson.get("parses").getAsJsonArray();
             for (JsonElement opt : parses) {
                 JsonObject obj = (JsonObject) opt;
@@ -593,7 +609,8 @@ public class ApiConfig {
         if(live_api_url.isEmpty() || apiUrl.equals(live_api_url)){
             LOG.i("echo-load-config_live");
             initLiveSettings();
-            if(infoJson.has("lives")){
+            if(infoJson.has("lives") && infoJson.get("lives").isJsonArray()
+                    && infoJson.get("lives").getAsJsonArray().size() > 0){
                 JsonArray lives_groups=infoJson.get("lives").getAsJsonArray();
                 int live_group_index=Hawk.get(HawkConfig.LIVE_GROUP_INDEX,0);
                 if(live_group_index>lives_groups.size()-1)Hawk.put(HawkConfig.LIVE_GROUP_INDEX,0);
@@ -636,7 +653,9 @@ public class ApiConfig {
         //video parse rule for host
         if (infoJson.has("rules")) {
             VideoParseRuler.clearRule();
-            for(JsonElement oneHostRule : infoJson.getAsJsonArray("rules")) {
+            JsonArray rulesSafe = (infoJson.get("rules") != null && infoJson.get("rules").isJsonArray())
+                ? infoJson.getAsJsonArray("rules") : new JsonArray();
+        for(JsonElement oneHostRule : rulesSafe) {
                 JsonObject obj = (JsonObject) oneHostRule;
                 if (obj.has("host")) {
                     String host = obj.get("host").getAsString();

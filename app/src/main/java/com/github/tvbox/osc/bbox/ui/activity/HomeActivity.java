@@ -708,9 +708,12 @@ public class HomeActivity extends BaseActivity {
     private static final long LONG_PRESS_THRESHOLD = 2000; // 设置长按的阈值，单位是毫秒
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        if (topHide < 0)
-            return false;
         int keyCode = event.getKeyCode();
+        // NOTE(2026-10-26): 原为 `if (topHide < 0) return false;` —— topHide 只有 0/1
+        // （changeTop 里 hide?1:0），`< 0` 永不成立；但顶部栏收起时（topHide=1）
+        // 菜单键仍应能呼出换源框，否则栏目页永远切不了源。菜单键单独放行。
+        if (topHide < 0 && keyCode != KeyEvent.KEYCODE_MENU)
+            return false;
         if (keyCode == KeyEvent.KEYCODE_MENU) {
             if (event.getAction() == KeyEvent.ACTION_DOWN) {
                 menuKeyDownTime = System.currentTimeMillis();
