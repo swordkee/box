@@ -3,6 +3,16 @@
  "wallpaper": "",
  "sites": [
   {
+   "key": "api09",
+   "name": "虎牙资源",
+   "type": 1,
+   "api": "https://www.huyaapi.com/api.php/provide/vod/from/hym3u8",
+   "searchable": 1,
+   "quickSearch": 1,
+   "filterable": 1,
+   "playerType": -1
+  },
+  {
    "key": "api00",
    "name": "量子资源",
    "type": 1,
@@ -87,16 +97,6 @@
    "name": "豪华资源",
    "type": 1,
    "api": "https://hhzyapi.com/api.php/provide/vod/",
-   "searchable": 1,
-   "quickSearch": 1,
-   "filterable": 1,
-   "playerType": -1
-  },
-  {
-   "key": "api09",
-   "name": "虎牙资源",
-   "type": 1,
-   "api": "https://www.huyaapi.com/api.php/provide/vod/from/hym3u8",
    "searchable": 1,
    "quickSearch": 1,
    "filterable": 1,

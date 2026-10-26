@@ -3,6 +3,7 @@ package com.github.tvbox.osc.bbox.api;
 import android.content.Context;
 import android.widget.Toast;
 import com.github.tvbox.osc.bbox.constant.URL;
+import com.github.tvbox.osc.bbox.util.DefaultConfig;
 import com.github.tvbox.osc.bbox.util.HawkConfig;
 import com.github.tvbox.osc.bbox.util.LOG;
 import com.google.gson.Gson;
@@ -84,17 +85,25 @@ public class StoreApiConfig {
                 if (null == json.get("urls")) {
                     // 仓库链接，先获取多源，再获取多配置
                     JsonObject infoJson = new Gson().fromJson(sourceJson, JsonObject.class);
-                    JsonArray storeHouses = infoJson.get("storeHouse").getAsJsonArray();
+                    // NOTE(2026-10-26 API15 port): 原为裸 get("storeHouse")+get(0)，
+                    // 多仓链接缺 storeHouse / 空数组时直接 IndexOutOfBoundsException。
+                    JsonArray storeHouses = DefaultConfig.safeJsonArray(infoJson, "storeHouse");
+                    if (storeHouses.size() == 0 || !storeHouses.get(0).isJsonObject()) {
+                        Toast.makeText(context, "多仓订阅格式无效（storeHouse 为空）", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
                     JsonObject defStoreHouse = storeHouses.get(0).getAsJsonObject();
 
                     // 多仓线路作为历史添加
                     // 默认添加30条，多出的直接放弃
                     for (int i = 0; i < storeHouses.size(); i++) {
 
-                        JsonObject storeHouse = infoJson.get("storeHouse").getAsJsonArray().get(i).getAsJsonObject();
+                        if (!storeHouses.get(i).isJsonObject()) continue;
+                        JsonObject storeHouse = storeHouses.get(i).getAsJsonObject();
 
-                        String sourceName = storeHouse.get("sourceName").getAsString();
-                        String sourceUrl = storeHouse.get("sourceUrl").getAsString();
+                        String sourceName = DefaultConfig.safeJsonString(storeHouse, "sourceName", "");
+                        String sourceUrl = DefaultConfig.safeJsonString(storeHouse, "sourceUrl", "");
+                        if (sourceName.isEmpty() || sourceUrl.isEmpty()) continue;
 
                         if (!storeMap.containsValue(sourceUrl)) {
                             storeMap.put(sourceName, sourceUrl);
@@ -105,8 +114,9 @@ public class StoreApiConfig {
                         //     break;
                         if (0 == i) {
 
-                            String name = defStoreHouse.get("sourceName").getAsString();
-                            String url = defStoreHouse.get("sourceUrl").getAsString();
+                            String name = DefaultConfig.safeJsonString(defStoreHouse, "sourceName", "");
+                            String url = DefaultConfig.safeJsonString(defStoreHouse, "sourceUrl", "");
+                            if (url.isEmpty()) continue;
                             Toast.makeText(context, name, Toast.LENGTH_SHORT).show();
 
                             Hawk.put(HawkConfig.STORE_API, url);
@@ -169,13 +179,15 @@ public class StoreApiConfig {
 
         if (null == urlsObject.get("urls")) return "订阅出错，失败！！！";
 
-        JsonArray urlsObjects = urlsObject.get("urls").getAsJsonArray();
-
+        // NOTE(2026-10-26 API15 port): 同根因——urls 非数组/项缺 name/url 均会崩
+        JsonArray urlsObjects = DefaultConfig.safeJsonArray(urlsObject, "urls");
 
         for (JsonElement element : urlsObjects) {
+            if (!element.isJsonObject()) continue;
             JsonObject obj = element.getAsJsonObject();
-            String name = obj.get("name").getAsString();
-            String url = obj.get("url").getAsString();
+            String name = DefaultConfig.safeJsonString(obj, "name", "");
+            String url = DefaultConfig.safeJsonString(obj, "url", "");
+            if (name.isEmpty() || url.isEmpty()) continue;
             if (!map.containsValue(url)) {
                 history.add(name);
                 map.put(name, url);

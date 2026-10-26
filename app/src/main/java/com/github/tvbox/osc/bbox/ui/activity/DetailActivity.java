@@ -1080,6 +1080,18 @@ public class DetailActivity extends BaseActivity {
                 return true;
             }
         }
+        // NOTE(2026-10-26 API15 port): 详情页遥控焦点导航不稳定（剧集网格会吸收上下键，
+        // 「全屏」按钮经常抢不到焦点），加菜单键作为稳定入口——任意焦点直接切全屏。
+        if (keyCode == KeyEvent.KEYCODE_MENU && showPreview && playFragment != null) {
+            if (event != null && event.getRepeatCount() == 0) {
+                toggleFullPreview();
+                if (firstReverse) {
+                    jumpToPlay();
+                    firstReverse = false;
+                }
+                return true;
+            }
+        }
         return super.onKeyDown(keyCode, event);
     }
 
@@ -1089,6 +1101,11 @@ public class DetailActivity extends BaseActivity {
             if (playFragment.onKeyUp(keyCode,event)) {
                 return true;
             }
+        }
+        // 菜单键已在 onKeyDown 里处理（切换全屏），这里吞掉 UP 事件，
+        // 否则会再发一次 KEYCODE_MENU 被上层当换源键处理。
+        if (keyCode == KeyEvent.KEYCODE_MENU && showPreview && playFragment != null) {
+            return true;
         }
         return super.onKeyUp(keyCode, event);
     }

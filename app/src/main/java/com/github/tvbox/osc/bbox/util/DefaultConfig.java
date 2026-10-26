@@ -157,6 +157,32 @@ public class DefaultConfig {
         return defaultVal;
     }
 
+    /**
+     * NOTE(2026-10-26 API15 port): 安全取数组。原代码大量使用 obj.get("x").getAsJsonArray()，
+     * 字段缺失时返回 null 触发 NPE、字段是空字符串触发 IllegalStateException，
+     * 在配置解析链路里会「一张配置全废」（表现：解析配置失败）。
+     * 统一走这里，缺失/类型不符一律给空数组，调用方再判 isEmpty。
+     */
+    public static com.google.gson.JsonArray safeJsonArray(JsonObject obj, String key) {
+        try {
+            if (obj != null && obj.has(key) && obj.get(key).isJsonArray()) {
+                return obj.getAsJsonArray(key);
+            }
+        } catch (Throwable th) {
+        }
+        return new com.google.gson.JsonArray();
+    }
+
+    public static com.google.gson.JsonObject safeJsonObject(JsonObject obj, String key) {
+        try {
+            if (obj != null && obj.has(key) && obj.get(key).isJsonObject()) {
+                return obj.getAsJsonObject(key);
+            }
+        } catch (Throwable th) {
+        }
+        return null;
+    }
+
     public static ArrayList<String> safeJsonStringList(JsonObject obj, String key) {
         ArrayList<String> result = new ArrayList<>();
         try {

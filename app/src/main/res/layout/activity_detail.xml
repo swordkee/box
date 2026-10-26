@@ -171,6 +171,7 @@
                             android:layout_marginEnd="@dimen/vs_10"
                             android:background="@drawable/button_detail_play"
                             android:focusable="true"
+                            android:nextFocusDown="@id/mGridViewFlag"
                             android:gravity="center"
                             android:text="播 放"
                             android:textColor="@android:color/white"
@@ -272,6 +273,7 @@
                     android:layout_marginTop="@dimen/vs_10"
                     android:clipChildren="false"
                     android:clipToPadding="false"
+                    android:nextFocusUp="@id/tvPlay"
                     app:tv_horizontalSpacingWithMargins="@dimen/vs_10"
                     app:tv_selectedItemIsCentered="false" />
 

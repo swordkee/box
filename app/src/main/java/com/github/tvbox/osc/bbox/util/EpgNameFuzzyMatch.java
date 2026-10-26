@@ -87,9 +87,13 @@ public class EpgNameFuzzyMatch {
 
 
     public static void hasAddData(JsonObject epgNameDoc){
-        for (JsonElement opt : epgNameDoc.get("epgs").getAsJsonArray()) {
+        if (epgNameDoc == null) return;
+        // NOTE(2026-10-26 API15 port): 同 EpgUtil —— 裸 get 缺字段即整段失败
+        for (JsonElement opt : DefaultConfig.safeJsonArray(epgNameDoc, "epgs")) {
+            if (!opt.isJsonObject()) continue;
             JsonObject obj = (JsonObject) opt;
-            String name = obj.get("name").getAsString().trim();
+            String name = DefaultConfig.safeJsonString(obj, "name", "");
+            if (name.isEmpty()) continue;
             String[] names  = name.split(",");
             for (String string : names) {
                 hsEpgName.put(string,obj);

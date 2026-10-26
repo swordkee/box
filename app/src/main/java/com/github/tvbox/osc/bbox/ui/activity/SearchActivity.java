@@ -412,19 +412,24 @@ public class SearchActivity extends BaseActivity {
                             String result = (String) response.body();
                             Gson gson = new Gson();
                             JsonElement json = gson.fromJson(result, JsonElement.class);
-                            JsonArray groupDataArr = json.getAsJsonObject()
-                                    .get("data").getAsJsonObject()
-                                    .get("search_data").getAsJsonObject()
-                                    .get("vecGroupData").getAsJsonArray()
-                                    .get(0).getAsJsonObject()
-                                    .get("group_data").getAsJsonArray();
+                            // NOTE(2026-10-26 API15 port): 原为六层裸 get + get(0)，
+                            // vecGroupData 为空数组时 get(0) 越界、任一层字段缺失抛异常。
+                            JsonObject root = json != null && json.isJsonObject() ? json.getAsJsonObject() : null;
+                            if (root == null) return;
+                            JsonObject dataObj = DefaultConfig.safeJsonObject(root, "data");
+                            JsonObject searchData = dataObj == null ? null : DefaultConfig.safeJsonObject(dataObj, "search_data");
+                            JsonArray vecGroup = searchData == null ? new JsonArray() : DefaultConfig.safeJsonArray(searchData, "vecGroupData");
+                            if (vecGroup.size() == 0 || !vecGroup.get(0).isJsonObject()) return;
+                            JsonArray groupDataArr = DefaultConfig.safeJsonArray(vecGroup.get(0).getAsJsonObject(), "group_data");
                             for (JsonElement groupDataElement : groupDataArr) {
+                                if (!groupDataElement.isJsonObject()) continue;
                                 JsonObject groupData = groupDataElement.getAsJsonObject();
-                                String keywordTxt = groupData.getAsJsonObject("dtReportInfo")
-                                        .getAsJsonObject("reportData")
-                                        .get("keyword_txt").getAsString();
-                                hots.add(keywordTxt.trim());
+                                JsonObject dtReport = DefaultConfig.safeJsonObject(groupData, "dtReportInfo");
+                                JsonObject reportData = dtReport == null ? null : DefaultConfig.safeJsonObject(dtReport, "reportData");
+                                String keywordTxt = reportData == null ? "" : DefaultConfig.safeJsonString(reportData, "keyword_txt", "");
+                                if (!keywordTxt.isEmpty()) hots.add(keywordTxt.trim());
                             }
+                            if (hots.isEmpty()) return;
                             wordsSwitch.setText("猜你想搜");
                             wordAdapter.setNewData(hots);
                             mGridViewWord.smoothScrollToPosition(0);
@@ -488,20 +493,31 @@ public class SearchActivity extends BaseActivity {
             });
     }
 
+    /** NOTE(2026-10-26 API15 port): 热搜分组取列表，任一层缺失都给空数组（不抛异常） */
+    private static JsonArray hotListOf(JsonObject mapResult, String key) {
+        JsonObject group = DefaultConfig.safeJsonObject(mapResult, key);
+        if (group == null) return new JsonArray();
+        return DefaultConfig.safeJsonArray(group, "listInfo");
+    }
+
     private void handleRespBody(JsonObject respBody) {
         ArrayList<String> hots = new ArrayList<>();
         ArrayList<String> movieHots = new ArrayList<>();
         ArrayList<String> tvHots = new ArrayList<>();
         ArrayList<String> ciliHots = new ArrayList<>();
-        JsonObject hotsMapResult = respBody.get("data").getAsJsonObject().get("mapResult").getAsJsonObject();
-        // 热搜
-        JsonArray itemList = hotsMapResult.get("0").getAsJsonObject().get("listInfo").getAsJsonArray();
-        // 电影
-        JsonArray moviesItemList = hotsMapResult.get("1").getAsJsonObject().get("listInfo").getAsJsonArray();
-        // 电视剧
-        JsonArray tvItemList = hotsMapResult.get("2").getAsJsonObject().get("listInfo").getAsJsonArray();
-        // 动漫
-        JsonArray ciliItemList = hotsMapResult.get("3").getAsJsonObject().get("listInfo").getAsJsonArray();
+        // NOTE(2026-10-26 API15 port): 原为 respBody.get("data").getAsJsonObject().get("mapResult")...
+        // 六层裸 get —— 腾讯热搜接口字段一变（改 data/mapResult/0-3/listInfo 任一层）就抛异常，
+        // 表现为热搜词永远空白。改为逐层安全取值，某层缺失就用空列表，其余层照常展示。
+        JsonObject dataObj = DefaultConfig.safeJsonObject(respBody, "data");
+        JsonObject hotsMapResult = dataObj == null ? null : DefaultConfig.safeJsonObject(dataObj, "mapResult");
+        if (hotsMapResult == null) {
+            LOG.e("handleRespBody: 热搜数据结构变化，data/mapResult 缺失");
+            return;
+        }
+        JsonArray itemList = hotListOf(hotsMapResult, "0");
+        JsonArray moviesItemList = hotListOf(hotsMapResult, "1");
+        JsonArray tvItemList = hotListOf(hotsMapResult, "2");
+        JsonArray ciliItemList = hotListOf(hotsMapResult, "3");
         for (JsonElement ele : itemList) hots.add(getTitle(((JsonObject) ele).get("title").getAsString()));
         for (JsonElement ele : moviesItemList) movieHots.add(getTitle(((JsonObject) ele).get("title").getAsString()));
         for (JsonElement ele : tvItemList) tvHots.add(getTitle(((JsonObject) ele).get("title").getAsString()));

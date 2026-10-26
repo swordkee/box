@@ -104,6 +104,10 @@ public class SourceViewModel extends ViewModel {
         }
 
         SourceBean sourceBean = ApiConfig.get().getSource(sourceKey);
+        if (sourceBean == null) {
+            LOG.e("站点不存在 sourceKey=" + sourceKey);
+            return;
+        }
         if(sourceBean.getName().length()<=3 && sourceBean.getName().endsWith("搜")){
             sortResult.postValue(null);
             return;
@@ -498,6 +502,13 @@ public class SourceViewModel extends ViewModel {
     }
     // detailContent
     public void getDetail(String sourceKey, String urlid) {
+        // NOTE(2026-10-26 API15 port): 原为裸调用，冷启动/配置未加载完/站点不存在时
+        // sourceBean 为 null，第 519 行 sourceBean.getType() 抛 NPE → Activity 启动崩溃。
+        // R8 mapping 还原的堆栈：DetailActivity.i(14) → SourceViewModel.getDetail():519 → SourceBean.getType():54
+        if (urlid == null) {
+            LOG.e("getDetail: urlid 为空，sourceKey=" + sourceKey);
+            return;
+        }
         if (urlid.startsWith("push://") && ApiConfig.get().getSource("push_agent") != null) {
             String pushUrl = urlid.substring(7);
             if (pushUrl.startsWith("b64:")) {
@@ -516,6 +527,13 @@ public class SourceViewModel extends ViewModel {
 
         SourceBean sourceBean = ApiConfig.get().getSource(sourceKey);
         // LOG.d("sourceBean = " + sourceBean);
+        // NOTE(2026-10-26 API15 port): 冷启动/配置未加载完/站点不存在时 sourceBean 为 null，
+        // 原先裸调 getType() 抛 NPE 导致 Activity 启动崩溃（R8 mapping 还原堆栈）。
+        if (sourceBean == null) {
+            LOG.e("getDetail: 站点不存在 sourceKey=" + sourceKey + " (配置未加载完成或站点已被删除)");
+            json(detailResult, null, sourceKey);
+            return;
+        }
         int type = sourceBean.getType();
         if (type == 3) {
             spThreadPool.execute(new Runnable() {
@@ -589,6 +607,10 @@ public class SourceViewModel extends ViewModel {
     // searchContent
     public void getSearch(String sourceKey, String wd) {
         SourceBean sourceBean = ApiConfig.get().getSource(sourceKey);
+        if (sourceBean == null) {
+            LOG.e("站点不存在 sourceKey=" + sourceKey);
+            return;
+        }
         int type = sourceBean.getType();
         if (type == 3) {
             try {
@@ -679,6 +701,10 @@ public class SourceViewModel extends ViewModel {
     // searchContent
     public void getQuickSearch(String sourceKey, String wd) {
         SourceBean sourceBean = ApiConfig.get().getSource(sourceKey);
+        if (sourceBean == null) {
+            LOG.e("站点不存在 sourceKey=" + sourceKey);
+            return;
+        }
         int type = sourceBean.getType();
         if (type == 3) {
             try {
@@ -761,6 +787,10 @@ public class SourceViewModel extends ViewModel {
     // playerContent
     public void getPlay(String sourceKey, String playFlag, String progressKey, String url, String subtitleKey) {
         SourceBean sourceBean = ApiConfig.get().getSource(sourceKey);
+        if (sourceBean == null) {
+            LOG.e("站点不存在 sourceKey=" + sourceKey);
+            return;
+        }
         int type = sourceBean.getType();
         if (type == 3) {
             spThreadPool.execute(new Runnable() {
@@ -882,6 +912,17 @@ public class SourceViewModel extends ViewModel {
     }
 
     private static final ConcurrentHashMap<String, String> extendCache = new ConcurrentHashMap<>();
+    // NOTE(2026-10-26 API15 port): extendCache 之前完全没有上限，切换多个源后
+    // 每个源的 extend JSON（可能上百 KB）都常驻静态 map，1GB 机型上会持续吃内存。
+    private static final int EXTEND_CACHE_LIMIT = 8;
+
+    /** 缓存超上限时整体清空（源切换后 extend 不跨站复用，清空无副作用） */
+    private static void trimExtendCache() {
+        if (extendCache.size() >= EXTEND_CACHE_LIMIT) {
+            LOG.i("echo-getFixUrl 缓存达上限，清空");
+            extendCache.clear();
+        }
+    }
 
     private String getFixUrl(final String extend) {
         if(extend.isEmpty())return "";
@@ -900,12 +941,14 @@ public class SourceViewModel extends ViewModel {
                     path = path.replaceAll("localhost/", "/");
                     result = FileUtils.readFileToString(path, "UTF-8");
                     result = tryMinifyJson(result);
+                    trimExtendCache();
                     extendCache.putIfAbsent(key, result);
                 } else if (extend.startsWith("http")) {
                     result = OkHttpUtil.string(extend, null);
                     if (!result.isEmpty()) {
                         result = tryMinifyJson(result);
                         if(result.length()>2500)result = extend;
+                        trimExtendCache();
                         extendCache.putIfAbsent(key, result);
                     }
                 }
@@ -936,14 +979,17 @@ public class SourceViewModel extends ViewModel {
     }
 
     private MovieSort.SortFilter getSortFilter(JsonObject obj) {
-        String key = obj.get("key").getAsString();
-        String name = obj.get("name").getAsString();
-        JsonArray kv = obj.getAsJsonArray("value");
+        // NOTE(2026-10-26 API15 port): 原为裸 get("key")/get("name")/getAsJsonArray("value")，
+        // 站点筛选器配置缺任一项即抛异常，整个筛选面板加载失败（点分类卡住/崩溃）。
+        String key = DefaultConfig.safeJsonString(obj, "key", "");
+        String name = DefaultConfig.safeJsonString(obj, "name", key);
+        JsonArray kv = DefaultConfig.safeJsonArray(obj, "value");
         LinkedHashMap<String, String> values = new LinkedHashMap<>();
         for (JsonElement ele : kv) {
+            if (!ele.isJsonObject()) continue;
             JsonObject ele_obj = ele.getAsJsonObject();
-            String values_key=ele_obj.has("n")?ele_obj.get("n").getAsString():"";
-            String values_value=ele_obj.has("v")?ele_obj.get("v").getAsString():"";
+            String values_key=DefaultConfig.safeJsonString(ele_obj, "n", "");
+            String values_value=DefaultConfig.safeJsonString(ele_obj, "v", "");
             values.put(values_key, values_value);
         }
         MovieSort.SortFilter filter = new MovieSort.SortFilter();

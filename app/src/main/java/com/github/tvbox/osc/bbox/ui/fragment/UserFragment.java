@@ -320,16 +320,23 @@ public class UserFragment extends BaseLazyFragment implements View.OnClickListen
         ArrayList<Movie.Video> result = new ArrayList<>();
         try {
             JsonObject infoJson = new Gson().fromJson(json, JsonObject.class);
-            JsonArray array = infoJson.getAsJsonArray("data");
+            // NOTE(2026-10-26 API15 port): 原为 infoJson.getAsJsonArray("data")，
+            // 豆瓣接口结构变化（无 data 字段）时返回 null → array.size() NPE，
+            // 被外层 catch 吞掉 ⇒ 首页「热门电影」永远空白且无任何提示。
+            JsonArray array = DefaultConfig.safeJsonArray(infoJson, "data");
             int limit = Math.min(array.size(), 25);
             for (int i = 0; i < limit; i++) {  // 改用索引循环
                 JsonElement ele = array.get(i);
+                if (ele == null || !ele.isJsonObject()) continue;
                 JsonObject obj = ele.getAsJsonObject();
                 Movie.Video vod = new Movie.Video();
-                vod.name = obj.get("title").getAsString();
-                vod.note = obj.get("rate").getAsString();
+                vod.name = DefaultConfig.safeJsonString(obj, "title", "");
+                vod.note = DefaultConfig.safeJsonString(obj, "rate", "");
+                if (vod.name.isEmpty()) continue;
                 if (!vod.note.isEmpty()) vod.note += " 分";
-                vod.pic = obj.get("cover").getAsString()
+                String cover = DefaultConfig.safeJsonString(obj, "cover", "");
+                if (cover.isEmpty()) continue;
+                vod.pic = cover
                         + "@User-Agent=" + UA.randomOne()
                         + "@Referer=https://www.douban.com/";
 

@@ -41,6 +41,7 @@ import com.github.tvbox.osc.bbox.util.live.TxtSubscribe;
 import com.github.tvbox.osc.bbox.util.urlhttp.CallBackUtil;
 import com.github.tvbox.osc.bbox.util.urlhttp.UrlHttpUtil;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.lzy.okgo.OkGo;
 import com.lzy.okgo.callback.AbsCallback;
@@ -966,24 +967,42 @@ public class LivePlayActivity extends BaseActivity {
     private void initLiveObj(){
         int position=Hawk.get(HawkConfig.LIVE_GROUP_INDEX, 0);
         JsonArray live_groups=Hawk.get(HawkConfig.LIVE_GROUP_LIST,new JsonArray());
-        JsonObject livesOBJ = live_groups.get(position).getAsJsonObject();
-        String type = livesOBJ.has("type")?livesOBJ.get("type").getAsString():"0";
+        // NOTE(2026-10-26 API15 port): 原为 live_groups.get(position) 裸取 ——
+        // Hawk 里存的分组序号在换源后（分组数变少）会越界，进直播直接崩溃。
+        // 越界/空数组时回落第 0 组；仍无有效分组则安全退出，由上层提示无直播源。
+        if (live_groups == null || live_groups.size() == 0) {
+            LOG.e("initLiveObj: 直播分组为空（配置无 lives 或未加载完）");
+            return;
+        }
+        if (position < 0 || position >= live_groups.size()) {
+            position = 0;
+            Hawk.put(HawkConfig.LIVE_GROUP_INDEX, 0);
+        }
+        JsonElement liveGroupEl = live_groups.get(position);
+        if (liveGroupEl == null || !liveGroupEl.isJsonObject()) {
+            LOG.e("initLiveObj: 直播分组项不是对象，position=" + position);
+            return;
+        }
+        JsonObject livesOBJ = liveGroupEl.getAsJsonObject();
+        String type = DefaultConfig.safeJsonString(livesOBJ, "type", "0");
 
         if(livesOBJ.has("catchup")){
-            catchup = livesOBJ.getAsJsonObject("catchup");
-            LOG.i("echo-catchup :"+ catchup.toString());
-            hasCatchup=true;
+            catchup = DefaultConfig.safeJsonObject(livesOBJ, "catchup");
+            if (catchup != null) {
+                LOG.i("echo-catchup :"+ catchup.toString());
+                hasCatchup=true;
+            }
         }
         if(livesOBJ.has("logo")){
-            logoUrl = livesOBJ.get("logo").getAsString();
+            logoUrl = DefaultConfig.safeJsonString(livesOBJ, "logo", null);
         }
         if(type.equals("3")){
             String py_jar="";
             if(livesOBJ.has("jar")){
-                py_jar=livesOBJ.has("jar")?livesOBJ.get("jar").getAsString():"";
+                py_jar=DefaultConfig.safeJsonString(livesOBJ, "jar", "");
 
             }else if(livesOBJ.has("api")){
-                py_jar=livesOBJ.has("api")?livesOBJ.get("api").getAsString():"";
+                py_jar=DefaultConfig.safeJsonString(livesOBJ, "api", "");
 //                String ext = livesOBJ.has("ext")?livesOBJ.get("ext").getAsJsonObject().toString():"";
                 String ext="";
                 if(livesOBJ.has("ext") && (livesOBJ.get("ext").isJsonObject() || livesOBJ.get("ext").isJsonArray())){
@@ -1208,9 +1227,11 @@ public class LivePlayActivity extends BaseActivity {
                     shiyi_time = shiyiStartdate + "-" + shiyiEnddate;
                     isSHIYI = true;
                     //mCanSeek=true;
-                    if(hasCatchup){
-                        String replace=catchup.get("replace").getAsString();
-                        String source=catchup.get("source").getAsString();
+                    if(hasCatchup && catchup != null){
+                        // NOTE(2026-10-26 API15 port): 回看配置缺 replace/source 时
+                        // 原为裸 get 抛异常（NPE / IllegalStateException）导致回看崩溃。
+                        String replace=DefaultConfig.safeJsonString(catchup, "replace", "");
+                        String source=DefaultConfig.safeJsonString(catchup, "source", "");
                         String[] parts = replace.split(",");
                         String left = parts.length > 0 ? parts[0].trim() : "";
                         String right = parts.length > 1 ? parts[1].trim() : "";
@@ -1321,9 +1342,11 @@ public class LivePlayActivity extends BaseActivity {
                     shiyi_time = shiyiStartdate + "-" + shiyiEnddate;
                     isSHIYI = true;
                     //mCanSeek=true;
-                    if(hasCatchup){
-                        String replace=catchup.get("replace").getAsString();
-                        String source=catchup.get("source").getAsString();
+                    if(hasCatchup && catchup != null){
+                        // NOTE(2026-10-26 API15 port): 回看配置缺 replace/source 时
+                        // 原为裸 get 抛异常（NPE / IllegalStateException）导致回看崩溃。
+                        String replace=DefaultConfig.safeJsonString(catchup, "replace", "");
+                        String source=DefaultConfig.safeJsonString(catchup, "source", "");
                         String[] parts = replace.split(",");
                         String left = parts.length > 0 ? parts[0].trim() : "";
                         String right = parts.length > 1 ? parts[1].trim() : "";

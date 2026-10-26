@@ -152,15 +152,23 @@ public class ApiConfig {
             ijkCodes = new ArrayList<>();
             boolean foundOldSelect = false;
             String ijkCodec = Hawk.get(HawkConfig.IJK_CODEC, "");
-            JsonArray ijkJsonArray = infoJson.has("ijk")?infoJson.get("ijk").getAsJsonArray():defaultJson.get("ijk").getAsJsonArray();
+            // NOTE(2026-10-26 API15 port): 原为裸 get，配置里缺 ijk/group/options/category 任一项
+            // 即抛异常导致整张配置解析失败。统一改安全读取，缺项跳过。
+            JsonArray ijkJsonArray = infoJson.has("ijk")
+                    ? DefaultConfig.safeJsonArray(infoJson, "ijk")
+                    : DefaultConfig.safeJsonArray(defaultJson, "ijk");
             for (JsonElement opt : ijkJsonArray) {
+                if (!opt.isJsonObject()) continue;
                 JsonObject obj = (JsonObject) opt;
-                String name = obj.get("group").getAsString();
+                String name = DefaultConfig.safeJsonString(obj, "group", "");
+                if (name.isEmpty()) continue;
                 LinkedHashMap<String, String> baseOpt = new LinkedHashMap<>();
-                for (JsonElement cfg : obj.get("options").getAsJsonArray()) {
+                for (JsonElement cfg : DefaultConfig.safeJsonArray(obj, "options")) {
+                    if (!cfg.isJsonObject()) continue;
                     JsonObject cObj = (JsonObject) cfg;
-                    String key = cObj.get("category").getAsString() + "|" + cObj.get("name").getAsString();
-                    String val = cObj.get("value").getAsString();
+                    String key = DefaultConfig.safeJsonString(cObj, "category", "") + "|"
+                            + DefaultConfig.safeJsonString(cObj, "name", "");
+                    String val = DefaultConfig.safeJsonString(cObj, "value", "");
                     baseOpt.put(key, val);
                 }
                 IJKCode codec = new IJKCode();
@@ -581,11 +589,17 @@ public class ApiConfig {
         if(infoJson.has("parses") && infoJson.get("parses").isJsonArray()){
             JsonArray parses = infoJson.get("parses").getAsJsonArray();
             for (JsonElement opt : parses) {
+                if (!opt.isJsonObject()) continue;
                 JsonObject obj = (JsonObject) opt;
+                // NOTE(2026-10-26 API15 port): 原为裸 get("name")/get("url")，
+                // 缺字段即抛异常导致整张配置解析失败。缺 name/url 的解析器直接跳过。
+                String pName = DefaultConfig.safeJsonString(obj, "name", "");
+                String pUrl = DefaultConfig.safeJsonString(obj, "url", "");
+                if (pName.isEmpty() || pUrl.isEmpty()) continue;
                 ParseBean pb = new ParseBean();
-                pb.setName(obj.get("name").getAsString().trim());
-                pb.setUrl(obj.get("url").getAsString().trim());
-                String ext = obj.has("ext") ? obj.get("ext").getAsJsonObject().toString() : "";
+                pb.setName(pName);
+                pb.setUrl(pUrl);
+                String ext = obj.has("ext") ? DefaultConfig.safeJsonString(obj, "ext", "") : "";
                 pb.setExt(ext);
                 pb.setType(DefaultConfig.safeJsonInt(obj, "type", 0));
                 parseBeanList.add(pb);
@@ -620,8 +634,11 @@ public class ApiConfig {
                     int liveCount = lives_groups.size();
                     ArrayList<LiveSettingItem> liveSettingItemList = new ArrayList<>();
                     for (int i=0; i< liveCount;i++) {
-                        JsonObject jsonObject = lives_groups.get(i).getAsJsonObject();
-                        String name = jsonObject.has("name")?jsonObject.get("name").getAsString():"线路"+(i+1);
+                        JsonElement oneLive = lives_groups.get(i);
+                        if (!oneLive.isJsonObject()) continue;
+                        JsonObject jsonObject = oneLive.getAsJsonObject();
+                        // NOTE(2026-10-26 API15 port): 直播分组项缺 name 给默认名，不再裸 get
+                        String name = DefaultConfig.safeJsonString(jsonObject, "name", "线路" + (i + 1));
                         LiveSettingItem liveSettingItem = new LiveSettingItem();
                         liveSettingItem.setItemIndex(i);
                         liveSettingItem.setItemName(name);
@@ -633,8 +650,16 @@ public class ApiConfig {
                     e.printStackTrace();
                 }
 
-                JsonObject livesOBJ = lives_groups.get(live_group_index).getAsJsonObject();
-                loadLiveApi(livesOBJ);
+                // NOTE(2026-10-26 API15 port): 原为 lives_groups.get(live_group_index) 裸取，
+                // group_index 被 Hawk 里过期的大值带偏时越界（只在 >size-1 时重置，负数不防）。
+                if (live_group_index < 0 || live_group_index >= lives_groups.size()) {
+                    live_group_index = 0;
+                    Hawk.put(HawkConfig.LIVE_GROUP_INDEX, 0);
+                }
+                JsonElement liveGroupEl = lives_groups.get(live_group_index);
+                if (liveGroupEl != null && liveGroupEl.isJsonObject()) {
+                    loadLiveApi(liveGroupEl.getAsJsonObject());
+                }
             }
         }
 
@@ -656,6 +681,7 @@ public class ApiConfig {
             JsonArray rulesSafe = (infoJson.get("rules") != null && infoJson.get("rules").isJsonArray())
                 ? infoJson.getAsJsonArray("rules") : new JsonArray();
         for(JsonElement oneHostRule : rulesSafe) {
+                if (!oneHostRule.isJsonObject()) continue;
                 JsonObject obj = (JsonObject) oneHostRule;
                 if (obj.has("host")) {
                     String host = obj.get("host").getAsString();
@@ -752,15 +778,19 @@ public class ApiConfig {
             ijkCodes = new ArrayList<>();
             boolean foundOldSelect = false;
             String ijkCodec = Hawk.get(HawkConfig.IJK_CODEC, "硬解码");
-            JsonArray ijkJsonArray = defaultJson.get("ijk").getAsJsonArray();
+            JsonArray ijkJsonArray = DefaultConfig.safeJsonArray(defaultJson, "ijk");
             for (JsonElement opt : ijkJsonArray) {
+                if (!opt.isJsonObject()) continue;
                 JsonObject obj = (JsonObject) opt;
-                String name = obj.get("group").getAsString();
+                String name = DefaultConfig.safeJsonString(obj, "group", "");
+                if (name.isEmpty()) continue;
                 LinkedHashMap<String, String> baseOpt = new LinkedHashMap<>();
-                for (JsonElement cfg : obj.get("options").getAsJsonArray()) {
+                for (JsonElement cfg : DefaultConfig.safeJsonArray(obj, "options")) {
+                    if (!cfg.isJsonObject()) continue;
                     JsonObject cObj = (JsonObject) cfg;
-                    String key = cObj.get("category").getAsString() + "|" + cObj.get("name").getAsString();
-                    String val = cObj.get("value").getAsString();
+                    String key = DefaultConfig.safeJsonString(cObj, "category", "") + "|"
+                            + DefaultConfig.safeJsonString(cObj, "name", "");
+                    String val = DefaultConfig.safeJsonString(cObj, "value", "");
                     baseOpt.put(key, val);
                 }
                 IJKCode codec = new IJKCode();
@@ -800,8 +830,12 @@ public class ApiConfig {
 
         String liveURL_final = null;
         try {
-            if (infoJson.has("lives") && infoJson.get("lives").getAsJsonArray() != null) {
-                JsonObject livesOBJ = infoJson.get("lives").getAsJsonArray().get(0).getAsJsonObject();
+            // NOTE(2026-10-26 API15 port): 原为 `has("lives") && getAsJsonArray() != null` 后直接 get(0)。
+            // lives 为空数组 [] 时 size=0 → IndexOutOfBoundsException（与「解析配置失败」同根因），
+            // 且 lives 为字符串/对象时 getAsJsonArray() 抛 IllegalStateException。
+            JsonArray livesArr = DefaultConfig.safeJsonArray(infoJson, "lives");
+            if (livesArr.size() > 0 && livesArr.get(0).isJsonObject()) {
+                JsonObject livesOBJ = livesArr.get(0).getAsJsonObject();
                 String lives = livesOBJ.toString();
                 int index = lives.indexOf("proxy://");
                 if (index != -1) {
@@ -862,16 +896,20 @@ public class ApiConfig {
 
                     // if FongMi Live URL Formatting exists
                     if (!lives.contains("type")) {
-                        loadLives(infoJson.get("lives").getAsJsonArray());
+                        loadLives(livesArr);
                     } else {
-                        JsonObject fengMiLives = infoJson.get("lives").getAsJsonArray().get(0).getAsJsonObject();
-                        String type = fengMiLives.get("type").getAsString();
+                        JsonElement fengMiEl = livesArr.get(0);
+                        JsonObject fengMiLives = fengMiEl.isJsonObject() ? fengMiEl.getAsJsonObject() : null;
+                        if (fengMiLives == null) {
+                            loadLives(livesArr);
+                        } else {
+                        String type = DefaultConfig.safeJsonString(fengMiLives, "type", "0");
                         if (type.equals("0")) {
-                            String url = fengMiLives.get("url").getAsString();
+                            String url = DefaultConfig.safeJsonString(fengMiLives, "url", "");
 
                             // takagen99 : Getting EPG URL from File Config & put into Settings
                             if (fengMiLives.has("epg")) {
-                                String epg = fengMiLives.get("epg").getAsString();
+                                String epg = DefaultConfig.safeJsonString(fengMiLives, "epg", "");
                                 System.out.println("EPG URL :" + epg);
                                 putEPGHistory(epg);
                                 // Overwrite with EPG URL from Settings
@@ -898,6 +936,7 @@ public class ApiConfig {
 
 //                            url = Base64.encodeToString(url.getBytes("UTF-8"), Base64.DEFAULT | Base64.URL_SAFE | Base64.NO_WRAP);
                             }
+                        }
                         }
                     }
                 }
@@ -952,18 +991,29 @@ public class ApiConfig {
         // 直播源
         initLiveSettings();
         if(infoJson.has("lives")){
-            JsonArray lives_groups=infoJson.get("lives").getAsJsonArray();
+            // NOTE(2026-10-26 API15 port): has("lives") 不代表是数组/非空；
+            // 原代码在 lives 非数组或空数组时 get(live_group_index) 必越界。
+            JsonArray lives_groups = DefaultConfig.safeJsonArray(infoJson, "lives");
             int liveCount = lives_groups.size();
+            if (liveCount == 0) {
+                LOG.e("parseLiveJson: lives 为空，跳过直播解析");
+                return;
+            }
 
             int live_group_index=Hawk.get(HawkConfig.LIVE_GROUP_INDEX,0);
-            if(live_group_index>liveCount-1)Hawk.put(HawkConfig.LIVE_GROUP_INDEX,0);
+            if (live_group_index < 0 || live_group_index > liveCount - 1) {
+                live_group_index = 0;
+                Hawk.put(HawkConfig.LIVE_GROUP_INDEX, 0);
+            }
             Hawk.put(HawkConfig.LIVE_GROUP_LIST,lives_groups);
             //加载多源配置
             try {
                 ArrayList<LiveSettingItem> liveSettingItemList = new ArrayList<>();
                 for (int i=0; i< liveCount;i++) {
-                    JsonObject jsonObject = lives_groups.get(i).getAsJsonObject();
-                    String name = jsonObject.has("name")?jsonObject.get("name").getAsString():"线路"+(i+1);
+                    JsonElement oneLive = lives_groups.get(i);
+                    if (!oneLive.isJsonObject()) continue;
+                    JsonObject jsonObject = oneLive.getAsJsonObject();
+                    String name = DefaultConfig.safeJsonString(jsonObject, "name", "线路" + (i + 1));
                     LiveSettingItem liveSettingItem = new LiveSettingItem();
                     liveSettingItem.setItemIndex(i);
                     liveSettingItem.setItemName(name);
@@ -975,8 +1025,10 @@ public class ApiConfig {
                 e.printStackTrace();
             }
 
-            JsonObject livesOBJ = lives_groups.get(live_group_index).getAsJsonObject();
-            loadLiveApi(livesOBJ);
+            JsonElement liveGroupEl2 = lives_groups.get(live_group_index);
+            if (liveGroupEl2 != null && liveGroupEl2.isJsonObject()) {
+                loadLiveApi(liveGroupEl2.getAsJsonObject());
+            }
         }
 
         myHosts = new HashMap<>();
@@ -1184,7 +1236,9 @@ public class ApiConfig {
                 Hawk.put(HawkConfig.LIVE_WEB_HEADER, null);
                 return;
             } else {
-                String type= livesOBJ.get("type").getAsString();
+                // NOTE(2026-10-26 API15 port): 原为裸 get("type")/get("epg")/get("playerType")/get("ua")，
+                // 直播分组项缺任一字段即抛异常，导致整张配置解析失败。统一安全读取。
+                String type= DefaultConfig.safeJsonString(livesOBJ, "type", "0");
                 if(type.equals("0") || type.equals("3")){
                     url = livesOBJ.has("url")?livesOBJ.get("url").getAsString():"";
                     if(url.isEmpty())url=livesOBJ.has("api")?livesOBJ.get("api").getAsString():"";
@@ -1223,30 +1277,33 @@ public class ApiConfig {
             }
             //设置epg
             if(livesOBJ.has("epg")){
-                String epg =livesOBJ.get("epg").getAsString();
+                String epg = DefaultConfig.safeJsonString(livesOBJ, "epg", "");
                 Hawk.put(HawkConfig.EPG_URL,epg);
             }else {
                 Hawk.put(HawkConfig.EPG_URL,"");
             }
             //直播播放器类型
             if(livesOBJ.has("playerType")){
-                String livePlayType =livesOBJ.get("playerType").getAsString();
+                String livePlayType = DefaultConfig.safeJsonString(livesOBJ, "playerType", "0");
                 Hawk.put(HawkConfig.LIVE_PLAY_TYPE,livePlayType);
             }else {
                 Hawk.put(HawkConfig.LIVE_PLAY_TYPE,Hawk.get(HawkConfig.PLAY_TYPE, 0));
             }
             //设置UA
             if(livesOBJ.has("header")) {
-                JsonObject headerObj = livesOBJ.getAsJsonObject("header");
+                JsonObject headerObj = DefaultConfig.safeJsonObject(livesOBJ, "header");
                 HashMap<String, String> liveHeader = new HashMap<>();
-                for (Map.Entry<String, JsonElement> entry : headerObj.entrySet()) {
-                    liveHeader.put(entry.getKey(), entry.getValue().getAsString());
+                if (headerObj != null) {
+                    for (Map.Entry<String, JsonElement> entry : headerObj.entrySet()) {
+                        liveHeader.put(entry.getKey(), entry.getValue().isJsonPrimitive()
+                                ? entry.getValue().getAsString() : entry.getValue().toString());
+                    }
                 }
                 Hawk.put(HawkConfig.LIVE_WEB_HEADER, liveHeader);
             } else if(livesOBJ.has("ua")) {
-                String ua = livesOBJ.get("ua").getAsString();
+                String ua = DefaultConfig.safeJsonString(livesOBJ, "ua", "");
                 HashMap<String,String> liveHeader = new HashMap<>();
-                liveHeader.put("User-Agent", ua);
+                if (!ua.isEmpty()) liveHeader.put("User-Agent", ua);
                 Hawk.put(HawkConfig.LIVE_WEB_HEADER, liveHeader);
             }else {
                 Hawk.put(HawkConfig.LIVE_WEB_HEADER,null);

@@ -352,10 +352,15 @@ public class FileUtils {
                 return "";
             }
             JsonObject asJsonObject = (new Gson().fromJson(code, JsonObject.class)).getAsJsonObject();
-            if (((long) asJsonObject.get("expires").getAsInt()) <= System.currentTimeMillis() / 1000) {
+            // NOTE(2026-10-26 API15 port): 原为裸 get("expires")/get("data")，
+            // 缓存文件结构不符（旧版本残留/被截断）即抛异常 ⇒ 缓存永远失效，
+            // 每次播放都重新请求接口（弱网下表现为卡在「正在获取播放信息」）。
+            int expires = DefaultConfig.safeJsonInt(asJsonObject, "expires", 0);
+            if (((long) expires) <= System.currentTimeMillis() / 1000) {
                 recursiveDelete(open(name));
+                return "";
             }
-            return asJsonObject.get("data").getAsString();
+            return DefaultConfig.safeJsonString(asJsonObject, "data", "");
         } catch (Exception e4) {
             return "";
         }

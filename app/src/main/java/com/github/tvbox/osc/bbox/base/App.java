@@ -387,11 +387,19 @@ public class App extends MultiDexApplication {
         // 基准变了会 404；按 loadJar 的 cache key（MD5(spider 相对串)）预置到 filesDir/csp，
         // 配置 md5 与 jar 实际 md5 一致 → 缓存命中直接用，零网络
         try {
-            // NOTE(2026-10-25): 内置 jar 释放——4 个实测可用的 jar 打进 APK（assets/jars/），
+            // NOTE(2026-10-25): 内置 jar 释放——实测可用的 jar 打进 APK（assets/jars/），
             // 释放到 filesDir/jars/，配置用 file://jars/xxx.jar（RemoteServer /file/ 读 filesDir），彻底零网络
-            String[] bundledJars = {"ouge.jar", "wangerxiao.jar", "xiaohezi.jar", "xiaoma.jar"};
+            // NOTE(2026-10-26): 移除 wangerxiao.jar —— 其 csp 类 JNI 在 4.0.4 native 崩溃
+            // （tombstone: dvmPlatformInvoke / fault addr 0），配置已不再引用，继续打包只是白占体积。
+            String[] bundledJars = {"ouge.jar", "xiaohezi.jar", "xiaoma.jar"};
             java.io.File jarDir = new java.io.File(getFilesDir(), "jars");
             jarDir.mkdirs();
+            // 清掉历史版本残留的 wangerxiao.jar，避免"文件还在但配置已删"的混淆
+            try {
+                java.io.File stale = new java.io.File(jarDir, "wangerxiao.jar");
+                if (stale.exists()) stale.delete();
+            } catch (Throwable ignore) {
+            }
             for (String jarName : bundledJars) {
                 try {
                     java.io.InputStream jis = getAssets().open("jars/" + jarName);

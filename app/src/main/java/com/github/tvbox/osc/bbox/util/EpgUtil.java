@@ -42,11 +42,21 @@ public class EpgUtil {
             inputStreamReader.close();
             if(!builder.toString().isEmpty()){
                 epgDoc =  new Gson().fromJson(builder.toString(), (Type)JsonObject.class);// 从builder中读取了json中的数据。
-                for (JsonElement opt : epgDoc.get("epgs").getAsJsonArray()) {
+                // NOTE(2026-10-26 API15 port): 原为裸 get("epgs")/get("name") ——
+                // EPG 源返回结构变化（无 epgs 或项缺 name）时整段解析失败，EPG 全空。
+                for (JsonElement opt : DefaultConfig.safeJsonArray(epgDoc, "epgs")) {
+                    if (!opt.isJsonObject()) continue;
                     JsonObject obj = (JsonObject) opt;
-                    String name = obj.get("name").getAsString().trim();
+                    String name = DefaultConfig.safeJsonString(obj, "name", "");
+                    if (name.isEmpty()) continue;
                     String[] names  = name.split(",");
                     for (String string : names) {
+                        // NOTE(2026-10-26 API15 port): EPG_CACHE_LIMIT 之前只声明未使用（假修复），
+                        // 此处补齐真正的上限保护：超限先清空再重建，避免静态 map 无限增长。
+                        if (epgHashMap.size() >= EPG_CACHE_LIMIT) {
+                            LOG.e("EpgUtil: epgHashMap 达上限 " + EPG_CACHE_LIMIT + "，清空重建");
+                            epgHashMap.clear();
+                        }
                         epgHashMap.put(string,obj);
                     }
                 }
@@ -62,9 +72,10 @@ public class EpgUtil {
         try {
             if(epgHashMap.containsKey(channelName)){
                 JsonObject obj = epgHashMap.get(channelName);
+                // NOTE(2026-10-26 API15 port): 缺 logo/epgid 时原裸 get 抛异常 → EPG 取不到
                 return new String[] {
-                        obj.get("logo").getAsString(),
-                        obj.get("epgid").getAsString()
+                        DefaultConfig.safeJsonString(obj, "logo", ""),
+                        DefaultConfig.safeJsonString(obj, "epgid", "")
                 };
             }
         }catch (Exception ex) {

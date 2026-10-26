@@ -484,11 +484,17 @@ public class PlayFragment extends BaseLazyFragment {
             requireActivity().runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
+                    // NOTE(2026-10-26 API15 port): 点播没有直播那样的跨源自动换源，
+                    // 同一源重试 2 次 + 切播放器都失败后，原来只显示「视频播放出错」，
+                    // 用户不知道下一步该做什么（实测最大资源 CDN 只有 2.9KB/s、
+                    // 百度资源的 m3u8 指向 JPEG 序列，都属于「源本身不可播」）。
+                    // 这里给出可操作指引：直接提示换源（菜单键已在任何页面可用）。
+                    String tip = err + "（按菜单键可换源重试）";
                     if (finish) {
-                        setTip(err, false, true);
-                        Toast.makeText(mContext, err, Toast.LENGTH_SHORT).show();
+                        setTip(tip, false, true);
+                        Toast.makeText(mContext, tip, Toast.LENGTH_LONG).show();
                     } else {
-                        setTip(err, false, true);
+                        setTip(tip, false, true);
                     }
                 }
             });
