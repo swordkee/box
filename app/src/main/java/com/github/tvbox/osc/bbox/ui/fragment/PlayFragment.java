@@ -816,6 +816,8 @@ public class PlayFragment extends BaseLazyFragment {
     @Override
     public void onPause() {
         super.onPause();
+        // 睡眠定时：暂停时不检查（用户可能只是切走了）
+        sleepHandler.removeCallbacks(sleepCheckRun);
         if (mVideoView != null) {
             mVideoView.pause();
         }
@@ -824,6 +826,9 @@ public class PlayFragment extends BaseLazyFragment {
     @Override
     public void onResume() {
         super.onResume();
+        // 睡眠定时：回到前台恢复检查
+        sleepHandler.removeCallbacks(sleepCheckRun);
+        sleepHandler.postDelayed(sleepCheckRun, 1000);
         if (mVideoView != null) {
             mVideoView.resume();
         }
@@ -846,6 +851,7 @@ public class PlayFragment extends BaseLazyFragment {
     @Override
     public void onDestroyView() {
         super.onDestroyView();
+        sleepHandler.removeCallbacksAndMessages(null);
         EventBus.getDefault().unregister(this);
         if (mVideoView != null) {
             mVideoView.release();
@@ -986,6 +992,18 @@ public class PlayFragment extends BaseLazyFragment {
         if(mVideoView!=null) mVideoView.release();
         subtitleCacheKey = mVodInfo.sourceKey + "-" + mVodInfo.id + "-" + mVodInfo.playFlag + "-" + mVodInfo.playIndex+ "-" + vs.name + "-subt";
         progressKey = mVodInfo.sourceKey + mVodInfo.id + mVodInfo.playFlag + mVodInfo.playIndex + vs.name;
+        // NOTE(2026-10-26 API15 port): 跨源换源后按「时间点」续播。
+        // progressKey 里包含 sourceKey ⇒ 换源后 key 完全变了、doikki 按新 key 取不到旧进度，
+        // 于是从 0 开始。这里把 DetailActivity 传下的「换源前播放位置」直接写进**新 key**
+        // 的缓存，doikki 原有的恢复逻辑（setProgressKey → 读缓存 → seek）即可无缝生效，
+        // 不用改播放器内部。
+        if (App.getInstance().hasPendingResume()) {
+            long resumeMs = App.getInstance().consumePendingResumeIfMatches(mVodInfo.playIndex, mVodInfo.id);
+            if (resumeMs > 3000) {   // 太靠前（<3s）没必要续播
+                CacheManager.save(MD5.string2MD5(progressKey), resumeMs);
+                LOG.i("echo-resume-after-source-switch: " + resumeMs + "ms → " + progressKey);
+            }
+        }
         //重新播放清除现有进度
         if (reset) {
             CacheManager.delete(MD5.string2MD5(progressKey), 0);
@@ -1402,6 +1420,35 @@ public class PlayFragment extends BaseLazyFragment {
         }
         playUrl(rs.optString("url", ""), headers);
     }
+    // ---------------- 睡眠定时（到期停止播放并回首页） ----------------
+    // NOTE(2026-10-26 API15 port): 电视端常用功能。只在 onResume→onPause 之间跑，
+    // 到期后清空设置（一次性语义，避免"昨天设的"今天开机就生效），
+    // 只暂停播放 + finish，不杀进程（这台电视杀进程会导致黑屏恢复麻烦）。
+    private final android.os.Handler sleepHandler = new android.os.Handler();
+    private final Runnable sleepCheckRun = new Runnable() {
+        @Override
+        public void run() {
+            if (!isAdded()) return;
+            try {
+                long at = Hawk.get(HawkConfig.SLEEP_TIMER_AT, 0L);
+                if (at > 0 && System.currentTimeMillis() >= at) {
+                    Hawk.put(HawkConfig.SLEEP_TIMER_AT, 0L);
+                    LOG.i("sleep-timer fired, stop playback");
+                    if (mVideoView != null) mVideoView.pause();
+                    Toast.makeText(mContext, "睡眠定时已到，停止播放", Toast.LENGTH_LONG).show();
+                    try {
+                        requireActivity().finish();
+                    } catch (Throwable ignore) {
+                    }
+                    return;
+                }
+            } catch (Throwable th) {
+                LOG.e("sleep check: " + th);
+            }
+            sleepHandler.postDelayed(this, 1000);
+        }
+    };
+
     public MyVideoView getPlayer() {
         return mVideoView;
     }

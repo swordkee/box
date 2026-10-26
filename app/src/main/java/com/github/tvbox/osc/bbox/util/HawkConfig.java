@@ -76,6 +76,8 @@ public class HawkConfig {
 
     /** NOTE(2026-10-25): DLNA 接收（投屏）开关——默认关闭，避免占用内存与组播端口 */
     public static final String DLNA_ENABLE = "dlna_enable";
+    // 睡眠定时：到期时间戳（毫秒），0=未设定。一次性，触发后自动清零。
+    public static final String SLEEP_TIMER_AT = "sleep_timer_at";
 
     public static boolean hotVodDelete;
 

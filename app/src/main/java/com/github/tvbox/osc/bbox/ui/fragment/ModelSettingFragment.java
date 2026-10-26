@@ -62,6 +62,7 @@ public class ModelSettingFragment extends BaseLazyFragment {
     private TextView tvSearchView;
     private TextView tvShowPreviewText;
     private TextView tvDlnaEnableText;
+    private TextView tvSleepTimerText;
     private TextView tvFastSearchText;
     private TextView tvm3u8AdText;
     private TextView tvRecStyleText;
@@ -95,6 +96,8 @@ public class ModelSettingFragment extends BaseLazyFragment {
         tvRecStyleText.setText(Hawk.get(HawkConfig.HOME_REC_STYLE, false) ? "是" : "否");
         tvDlnaEnableText = findViewById(R.id.dlnaEnableText);
         tvDlnaEnableText.setText(Hawk.get(HawkConfig.DLNA_ENABLE, false) ? "开启" : "关闭");
+        tvSleepTimerText = findViewById(R.id.sleepTimerText);
+        updateSleepTimerText();
         tvShowPreviewText = findViewById(R.id.showPreviewText);
         tvShowPreviewText.setText(Hawk.get(HawkConfig.SHOW_PREVIEW, true) ? "开启" : "关闭");
         tvDebugOpen = findViewById(R.id.tvDebugOpen);
@@ -302,6 +305,17 @@ public class ModelSettingFragment extends BaseLazyFragment {
                 } catch (Throwable th) {
                     com.github.tvbox.osc.bbox.util.LOG.e("dlna toggle: " + th);
                 }
+            }
+        });
+
+        // NOTE(2026-10-26 API15 port): 睡眠定时 —— 电视端常用（看着睡着自动停）。
+        // 做成一次性：设定后到期自动回到首页并清空，避免"昨天设的"今天一开机就生效。
+        // 不放播放页按键：DOWN/MENU 已被"呼出控制条"占用，加长按会互相干扰。
+        findViewById(R.id.llSleepTimer).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                FastClickCheckUtil.check(v);
+                showSleepTimerDialog();
             }
         });
 
@@ -912,6 +926,73 @@ public class ModelSettingFragment extends BaseLazyFragment {
             return "文字列表";
         } else {
             return "缩略图";
+        }
+    }
+
+    // ---------------- 睡眠定时 ----------------
+
+    /** 睡眠定时候选项（分钟，0=关闭） */
+    private static final int[] SLEEP_OPTIONS = {0, 15, 30, 45, 60, 90, 120};
+
+    private void updateSleepTimerText() {
+        if (tvSleepTimerText == null) return;
+        long at = Hawk.get(HawkConfig.SLEEP_TIMER_AT, 0L);
+        long left = at - System.currentTimeMillis();
+        if (at <= 0 || left <= 0) {
+            tvSleepTimerText.setText("关闭");
+        } else {
+            long min = (left + 59999) / 60000;
+            tvSleepTimerText.setText(min + " 分钟");
+        }
+    }
+
+    private void showSleepTimerDialog() {
+        try {
+            final java.util.List<String> labels = new java.util.ArrayList<>();
+            for (int m : SLEEP_OPTIONS) {
+                labels.add(m == 0 ? "关闭" : (m + " 分钟"));
+            }
+            final SelectDialog<String> dialog = new SelectDialog<>(mActivity);
+            dialog.setTip("睡眠定时（到期自动停止播放并回首页）");
+            int select = 0;
+            long at = Hawk.get(HawkConfig.SLEEP_TIMER_AT, 0L);
+            long left = at - System.currentTimeMillis();
+            if (at > 0 && left > 0) {
+                long min = (left + 59999) / 60000;
+                for (int i = 0; i < SLEEP_OPTIONS.length; i++) {
+                    if (SLEEP_OPTIONS[i] == min) {
+                        select = i;
+                        break;
+                    }
+                }
+            }
+            dialog.setAdapter(new SelectDialogAdapter.SelectDialogInterface<String>() {
+                @Override
+                public void click(String value, int pos) {
+                    int minutes = SLEEP_OPTIONS[pos];
+                    if (minutes <= 0) {
+                        Hawk.put(HawkConfig.SLEEP_TIMER_AT, 0L);
+                        android.widget.Toast.makeText(mActivity, "睡眠定时已关闭",
+                                android.widget.Toast.LENGTH_SHORT).show();
+                    } else {
+                        long target = System.currentTimeMillis() + minutes * 60000L;
+                        Hawk.put(HawkConfig.SLEEP_TIMER_AT, target);
+                        android.widget.Toast.makeText(mActivity,
+                                "已设定 " + minutes + " 分钟后停止播放",
+                                android.widget.Toast.LENGTH_SHORT).show();
+                    }
+                    updateSleepTimerText();
+                    dialog.dismiss();
+                }
+
+                @Override
+                public String getDisplay(String val) {
+                    return val;
+                }
+            }, SelectDialogAdapter.stringDiff, labels, select);
+            dialog.show();
+        } catch (Throwable th) {
+            com.github.tvbox.osc.bbox.util.LOG.e("showSleepTimerDialog: " + th);
         }
     }
 }

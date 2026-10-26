@@ -879,6 +879,32 @@ public class DetailActivity extends BaseActivity {
         }
     }
 
+    /**
+     * 换源前记下当前播放位置，供播放页在新源里按时点续播。
+     * 取不到（未在播放 / 播放器未就绪）就清空，避免残留旧值影响后续正常播放。
+     */
+    private void rememberResumeBeforeSourceSwitch() {
+        try {
+            if (vodInfo == null || vodInfo.id == null) {
+                App.getInstance().clearPendingResume();
+                return;
+            }
+            long posMs = 0;
+            if (showPreview && playFragment != null && playFragment.getPlayer() != null) {
+                posMs = playFragment.getPlayer().getCurrentPosition();
+            }
+            if (posMs > 3000) {
+                App.getInstance().setPendingResume(vodInfo.id, vodInfo.playIndex, posMs);
+                LOG.i("rememberResume: pos=" + posMs + " index=" + vodInfo.playIndex + " id=" + vodInfo.id);
+            } else {
+                App.getInstance().clearPendingResume();
+            }
+        } catch (Throwable th) {
+            LOG.e("rememberResume: " + th);
+            App.getInstance().clearPendingResume();
+        }
+    }
+
     /** 把剧集网格的高亮同步到 vodInfo.playIndex（换源对齐后必须调，否则高亮停在旧位置） */
     private void syncSeriesSelected() {
         try {
@@ -971,6 +997,9 @@ public class DetailActivity extends BaseActivity {
         } else if (event.type == RefreshEvent.TYPE_QUICK_SEARCH_SELECT) {
             if (event.obj != null) {
                 Movie.Video video = (Movie.Video) event.obj;
+                // NOTE(2026-10-26 API15 port): 换源前记下当前播放位置，换源后按时点续播。
+                // 原来只对齐集数、从 0 重播；progressKey 含 sourceKey，换源后必然取不到旧进度。
+                rememberResumeBeforeSourceSwitch();
                 loadDetail(video.id, video.sourceKey);
             }
         } else if (event.type == RefreshEvent.TYPE_QUICK_SEARCH_WORD_CHANGE) {

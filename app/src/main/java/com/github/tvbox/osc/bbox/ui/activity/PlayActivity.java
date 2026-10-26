@@ -777,6 +777,9 @@ public class PlayActivity extends BaseActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        // 睡眠定时：回到前台恢复检查
+        sleepHandler.removeCallbacks(sleepCheckRun);
+        sleepHandler.postDelayed(sleepCheckRun, 1000);
         if (mVideoView != null) {
             mVideoView.resume();
         }
@@ -786,14 +789,41 @@ public class PlayActivity extends BaseActivity {
     @Override
     protected void onPause() {
         super.onPause();
+        // 睡眠定时：暂停时不检查
+        sleepHandler.removeCallbacks(sleepCheckRun);
         if (mVideoView != null) {
             mVideoView.pause();
         }
     }
 
+    // ---------------- 睡眠定时（到期停止播放并回首页） ----------------
+    // NOTE(2026-10-26 API15 port): 与 PlayFragment 同口径。独立播放页也必须有，
+    // 否则「关掉预览直接全屏播放」这条路睡眠定时不生效。
+    private final android.os.Handler sleepHandler = new android.os.Handler();
+    private final Runnable sleepCheckRun = new Runnable() {
+        @Override
+        public void run() {
+            try {
+                long at = Hawk.get(HawkConfig.SLEEP_TIMER_AT, 0L);
+                if (at > 0 && System.currentTimeMillis() >= at) {
+                    Hawk.put(HawkConfig.SLEEP_TIMER_AT, 0L);
+                    LOG.i("sleep-timer fired (PlayActivity), stop playback");
+                    if (mVideoView != null) mVideoView.pause();
+                    Toast.makeText(PlayActivity.this, "睡眠定时已到，停止播放", Toast.LENGTH_LONG).show();
+                    finish();
+                    return;
+                }
+            } catch (Throwable th) {
+                LOG.e("sleep check: " + th);
+            }
+            sleepHandler.postDelayed(this, 1000);
+        }
+    };
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        sleepHandler.removeCallbacksAndMessages(null);
         if (mVideoView != null) {
             mVideoView.release();
             mVideoView = null;

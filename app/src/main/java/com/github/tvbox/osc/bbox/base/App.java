@@ -444,6 +444,52 @@ public class App extends MultiDexApplication {
         return this.vodInfo;
     }
 
+    /**
+     * NOTE(2026-10-26 API15 port): 跨源换源的「续播位置」中转。
+     * 详情页在换源前记下 (playIndex, vodId, positionMs)，播放页拿到新源后
+     * 用它把进度预写进新 progressKey 的缓存，从而实现「换源不丢进度」。
+     *
+     * 为什么用 App 单例中转而不是 Bundle：
+     *   showPreview 时播放走 PlayFragment.setData(bundle)（能传），但独立
+     *   PlayActivity 走 jumpActivity；为了两条路一致，统一放单例。
+     */
+    private String pendingResumeVodId = null;
+    private int pendingResumePlayIndex = -1;
+    private long pendingResumeMs = 0;
+
+    public void setPendingResume(String vodId, int playIndex, long positionMs) {
+        this.pendingResumeVodId = vodId;
+        this.pendingResumePlayIndex = playIndex;
+        this.pendingResumeMs = positionMs;
+    }
+
+    public boolean hasPendingResume() {
+        return pendingResumeMs > 0;
+    }
+
+    /**
+     * 消费续播位置：仅当 vodId 与 playIndex 都匹配时返回毫秒并清空。
+     * （换到别的片、或别的集，都不该续播。）
+     */
+    public long consumePendingResumeIfMatches(int playIndex, String vodId) {
+        long ms = pendingResumeMs;
+        String pid = pendingResumeVodId;
+        int pidx = pendingResumePlayIndex;
+        pendingResumeMs = 0;
+        pendingResumeVodId = null;
+        pendingResumePlayIndex = -1;
+        if (ms <= 0) return 0;
+        if (pid == null || vodId == null || !pid.equals(vodId)) return 0;
+        if (pidx != playIndex) return 0;
+        return ms;
+    }
+
+    public void clearPendingResume() {
+        pendingResumeVodId = null;
+        pendingResumePlayIndex = -1;
+        pendingResumeMs = 0;
+    }
+
     public static P2PClass getp2p() {
         try {
             if (p == null) {
