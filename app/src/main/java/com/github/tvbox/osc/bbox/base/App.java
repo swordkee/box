@@ -188,6 +188,10 @@ public class App extends MultiDexApplication {
                 java.io.File f = new java.io.File(new java.io.File(getFilesDir(), "configs"), name);
                 needReset = !f.exists();
             }
+            // 王二小 jar 的 csp 类 JNI 在 4.0.4 上 native 崩溃（tombstone 实证），强制迁移
+            if (cur.contains("wangerxiao")) {
+                needReset = true;
+            }
             if (needReset) {
                 Hawk.put(HawkConfig.API_URL, "file://tvbox.json");
                 Hawk.put(HawkConfig.API_NAME, "本地内置");
@@ -201,7 +205,6 @@ public class App extends MultiDexApplication {
             allow.add("本地内置");
             allow.add("纯API合集");
             allow.add("认歌");
-            allow.add("王二小");
             allow.add("小盒子");
             allow.add("小马");
 
@@ -241,12 +244,13 @@ public class App extends MultiDexApplication {
             // （fault addr deadd00d，Java 层无解），实测 ouge/wangerxiao/xiaohezi/xiaoma 全崩
             // NOTE(2026-10-25): 只保留纯 API 源（零 jar 依赖，规避 dalvik dexopt 崩溃）
             // 本地内置=量子/非凡/暴风；纯API合集=10 个苹果CMS站点（电影天堂/天涯/量子/非凡/极速/建安/百度/暴风/闪电/光速）
-            // NOTE(2026-10-25): 双轨源——纯 API（20 个，零 jar 依赖）+ jar 源（4 个，已反编译修复 dalvik 兼容）
+            // NOTE(2026-10-26): 双轨源——纯 API（20 个，零 jar 依赖）+ jar 源 3 个。
+            // 王二小(wangerxiao.jar) 已移除：其 csp 类 JNI 调用在 4.0.4 上 native 崩溃
+            // （tombstone: #02 pc in cache/.wexfnw* + dvmPlatformInvoke，fault addr 0）
             String[][] sources = {
                     {"本地内置", "file://tvbox.json"},
                     {"纯API合集", "file://configs/api_only.json"},
                     {"认歌", "file://configs/ouge.json"},
-                    {"王二小", "file://configs/wangerxiao.json"},
                     {"小盒子", "file://configs/xiaohezi.json"},
                     {"小马", "file://configs/xiaoma.json"},
             };

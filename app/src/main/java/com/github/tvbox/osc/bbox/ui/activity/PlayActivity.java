@@ -506,7 +506,7 @@ public class PlayActivity extends BaseActivity {
                             int playerType = mVodPlayerCfg.getInt("pl");
                             if (playerType >= 10) {
                                 VodInfo.VodSeries vs = mVodInfo.getCurrentSeries();
-                                if (vs == null) return;;
+                                if (vs == null) return;
                                 String playTitle = mVodInfo.name + " " + vs.name;
                                 setTip("调用外部播放器" + PlayerHelper.getPlayerName(playerType) + "进行播放", true, false);
                                 boolean callResult = false;

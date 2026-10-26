@@ -815,7 +815,10 @@ public class SourceViewModel extends ViewModel {
             try {
                 result.put("key", url);
                 String playUrl = sourceBean.getPlayerUrl().trim();
-                if (DefaultConfig.isVideoFormat(url) && playUrl.isEmpty()) {
+                // NOTE(2026-10-26): 站点没有配置解析器（playUrl 为空）时必须直连播放。
+                // 原逻辑用 isVideoFormat 判断，它只匹配固定域名白名单——新站点（纯API合集）域名
+                // 不在白名单里 → parse=1 走网页解析 → 无解析器必然「解析错误」
+                if (playUrl.isEmpty() || DefaultConfig.isVideoFormat(url)) {
                     result.put("parse", 0);
                     result.put("url", url);
                 } else {

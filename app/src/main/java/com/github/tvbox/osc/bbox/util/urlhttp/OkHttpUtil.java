@@ -156,10 +156,11 @@ public class OkHttpUtil {
     public static String getRedirectLocation(Map<String, List<String>> headers) {
         if (headers == null)
             return null;
-        if (headers.containsKey("location"))
-            return headers.get("location").get(0);
-        if (headers.containsKey("Location"))
-            return headers.get("Location").get(0);
+        // NOTE(2026-10-26): containsKey 为真不代表 value 非空/非 null，
+        // 原写法 get(0) 会 IndexOutOfBounds（重定向响应头缺失时常见）
+        List<String> loc = headers.get("location");
+        if (loc == null) loc = headers.get("Location");
+        if (loc != null && !loc.isEmpty()) return loc.get(0);
         return null;
     }
 }
