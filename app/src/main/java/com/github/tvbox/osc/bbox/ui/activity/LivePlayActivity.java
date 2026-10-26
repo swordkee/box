@@ -2249,7 +2249,10 @@ public class LivePlayActivity extends BaseActivity {
             @Override
             public void onChange(String password) {
                 if (password.equals(liveChannelGroupList.get(groupIndex).getGroupPassword())) {
-                    channelGroupPasswordConfirmed.add(groupIndex);
+                    // 防重复添加：同一分组确认多次会往列表里塞重复项（只增不清）
+                    if (!isPasswordConfirmed(groupIndex)) {
+                        channelGroupPasswordConfirmed.add(groupIndex);
+                    }
                     loadChannelGroupDataAndPlay(groupIndex, liveChannelIndex);
                 } else {
                     Toast.makeText(App.getInstance(), "密码错误", Toast.LENGTH_SHORT).show();
@@ -2297,7 +2300,11 @@ public class LivePlayActivity extends BaseActivity {
 
     private boolean isPasswordConfirmed(int groupIndex) {
         for (Integer confirmedNum : channelGroupPasswordConfirmed) {
-            if (confirmedNum == groupIndex)
+            // NOTE(2026-10-26 API15 port): 原为 `confirmedNum == groupIndex`。
+            // 这里 Integer 与 int 比较会由编译器自动拆箱，语义本身是对的
+            // （不会踩 Integer==Integer 的引用比较坑），但 confirmedNum 为 null 时会 NPE。
+            // 改为显式 intValue() + null 保护，意图更清晰、也不会被后人误改成引用比较。
+            if (confirmedNum != null && confirmedNum.intValue() == groupIndex)
                 return true;
         }
         return false;

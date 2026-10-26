@@ -950,6 +950,11 @@ public class PlayFragment extends BaseLazyFragment {
         loadFoundCount.set(0);
         loadFoundVideoUrls = new LinkedList<String>();
         loadFoundVideoUrlsHeader = new HashMap<String, HashMap<String, String>>();
+        // NOTE(2026-10-26 API15 port): loadedUrls 是 final 的「本次嗅探已见 URL」表，
+        // 原来从不清理 —— 每嗅到一个 URL 就 put 一条，换集/换源/重试都不清，
+        // 长时间使用（尤其接上自动换源后换得更频繁）会持续涨内存。
+        // 它与 loadFoundVideoUrls 同属「一次嗅探会话」的状态，必须一起重置。
+        if (loadedUrls != null) loadedUrls.clear();
     }
 
     public void setPlayTitle(boolean show)
@@ -1405,6 +1410,8 @@ public class PlayFragment extends BaseLazyFragment {
     private XWalkView mXwalkWebView;
     private WebView mSysWebView;
     private final Map<String, Boolean> loadedUrls = new HashMap<>();
+    /** 单次嗅探会话最多记录多少个 URL（防长会话无限涨） */
+    private static final int LOADED_URLS_LIMIT = 300;
     private LinkedList<String> loadFoundVideoUrls = new LinkedList<>();
     private HashMap<String, HashMap<String, String>> loadFoundVideoUrlsHeader = new HashMap<>();
     private final AtomicInteger loadFoundCount = new AtomicInteger(0);
@@ -1696,6 +1703,9 @@ public class PlayFragment extends BaseLazyFragment {
             boolean ad;
             if (!loadedUrls.containsKey(url)) {
                 ad = AdBlocker.isAd(url);
+                // NOTE(2026-10-26 API15 port): 加上限——单次嗅探会话也可能很长
+                // （webview 每次跳转/重定向都会进来），无上限会持续涨内存。
+                if (loadedUrls.size() >= LOADED_URLS_LIMIT) loadedUrls.clear();
                 loadedUrls.put(url, ad);
             } else {
                 ad = Boolean.TRUE.equals(loadedUrls.get(url));
@@ -1876,6 +1886,9 @@ public class PlayFragment extends BaseLazyFragment {
             boolean ad;
             if (!loadedUrls.containsKey(url)) {
                 ad = AdBlocker.isAd(url);
+                // NOTE(2026-10-26 API15 port): 加上限——单次嗅探会话也可能很长
+                // （webview 每次跳转/重定向都会进来），无上限会持续涨内存。
+                if (loadedUrls.size() >= LOADED_URLS_LIMIT) loadedUrls.clear();
                 loadedUrls.put(url, ad);
             } else {
                 ad = Boolean.TRUE.equals(loadedUrls.get(url));

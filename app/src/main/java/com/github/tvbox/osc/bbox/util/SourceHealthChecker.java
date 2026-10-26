@@ -66,8 +66,14 @@ public class SourceHealthChecker {
 
     private static synchronized OkHttpClient client() {
         if (client == null) {
-            client = OkGoHelper.getDefaultClient().newBuilder()
-                    .connectTimeout(6, TimeUnit.SECONDS)
+            // NOTE(2026-10-26 API15 port): getDefaultClient() 在 OkGoHelper.init() 之前是 null。
+            // 原来的 newBuilder() 会直接 NPE，导致所有探测静默失败（表现为「全部无结果」）。
+            // 拿不到默认 client 时退回裸 client（至少能测出连通性）。
+            OkHttpClient base = OkGoHelper.getDefaultClient();
+            OkHttpClient.Builder b = (base != null)
+                    ? base.newBuilder()
+                    : new OkHttpClient.Builder();
+            client = b.connectTimeout(6, TimeUnit.SECONDS)
                     .readTimeout(6, TimeUnit.SECONDS)
                     .writeTimeout(6, TimeUnit.SECONDS)
                     .build();
@@ -121,25 +127,36 @@ public class SourceHealthChecker {
             pool.execute(new Runnable() {
                 @Override
                 public void run() {
-                    Health h = null;
                     try {
-                        h = check(sb);
-                    } catch (Throwable th) {
-                        LOG.e(TAG + " check fail " + sb.getName() + ": " + th);
-                    }
-                    if (h != null) {
-                        CACHE.put(sb.getKey(), h);
+                        Health h = null;
                         try {
-                            Hawk.put(HAWK_PREFIX + sb.getKey(), h);
-                        } catch (Throwable ignore) {
+                            h = check(sb);
+                        } catch (Throwable th) {
+                            LOG.e(TAG + " check fail " + sb.getName() + ": " + th);
                         }
-                        if (listener != null) listener.onOne(sb, h);
-                    }
-                    synchronized (left) {
-                        left[0]--;
-                        if (left[0] <= 0) {
-                            running.set(false);
-                            if (listener != null) listener.onDone();
+                        if (h != null) {
+                            CACHE.put(sb.getKey(), h);
+                            try {
+                                Hawk.put(HAWK_PREFIX + sb.getKey(), h);
+                            } catch (Throwable ignore) {
+                            }
+                            if (listener != null) listener.onOne(sb, h);
+                        }
+                    } finally {
+                        // NOTE(2026-10-26 API15 port): 递减必须在 finally 里无条件执行。
+                        // 否则 check()/Hawk.put()/onOne() 任一处抛异常都会让 left 永不归零
+                        // → running 永久卡 true → 之后所有探测被 compareAndSet 挡掉（静默失效）。
+                        synchronized (left) {
+                            left[0]--;
+                            if (left[0] <= 0) {
+                                running.set(false);
+                                if (listener != null) {
+                                    try {
+                                        listener.onDone();
+                                    } catch (Throwable ignore) {
+                                    }
+                                }
+                            }
                         }
                     }
                 }

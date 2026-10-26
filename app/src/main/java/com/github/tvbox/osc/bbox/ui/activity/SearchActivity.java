@@ -493,6 +493,16 @@ public class SearchActivity extends BaseActivity {
             });
     }
 
+    /** NOTE(2026-10-26 API15 port): 逐条安全取热搜标题，坏条目跳过（不拖垮整批） */
+    private void collectTitles(JsonArray arr, ArrayList<String> out) {
+        if (arr == null || out == null) return;
+        for (JsonElement ele : arr) {
+            if (ele == null || !ele.isJsonObject()) continue;
+            String t = DefaultConfig.safeJsonString(ele.getAsJsonObject(), "title", "");
+            if (!t.isEmpty()) out.add(getTitle(t));
+        }
+    }
+
     /** NOTE(2026-10-26 API15 port): 热搜分组取列表，任一层缺失都给空数组（不抛异常） */
     private static JsonArray hotListOf(JsonObject mapResult, String key) {
         JsonObject group = DefaultConfig.safeJsonObject(mapResult, key);
@@ -518,10 +528,12 @@ public class SearchActivity extends BaseActivity {
         JsonArray moviesItemList = hotListOf(hotsMapResult, "1");
         JsonArray tvItemList = hotListOf(hotsMapResult, "2");
         JsonArray ciliItemList = hotListOf(hotsMapResult, "3");
-        for (JsonElement ele : itemList) hots.add(getTitle(((JsonObject) ele).get("title").getAsString()));
-        for (JsonElement ele : moviesItemList) movieHots.add(getTitle(((JsonObject) ele).get("title").getAsString()));
-        for (JsonElement ele : tvItemList) tvHots.add(getTitle(((JsonObject) ele).get("title").getAsString()));
-        for (JsonElement ele : ciliItemList) ciliHots.add(getTitle(((JsonObject) ele).get("title").getAsString()));
+        // NOTE(2026-10-26 API15 port): 逐元素裸 get("title") —— 任一条缺 title
+        // 就会抛异常导致整批热搜丢失。改为逐条安全取，坏条目跳过。
+        collectTitles(itemList, hots);
+        collectTitles(moviesItemList, movieHots);
+        collectTitles(tvItemList, tvHots);
+        collectTitles(ciliItemList, ciliHots);
 
         mGridViewHotWord.setViews(hots, st -> {
             if(Hawk.get(HawkConfig.FAST_SEARCH_MODE, false)){

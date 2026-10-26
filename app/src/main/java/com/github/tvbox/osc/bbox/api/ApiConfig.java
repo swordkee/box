@@ -596,7 +596,7 @@ public class ApiConfig {
         // 解析地址
         parseBeanList.clear();
         if(infoJson.has("parses") && infoJson.get("parses").isJsonArray()){
-            JsonArray parses = infoJson.get("parses").getAsJsonArray();
+            JsonArray parses = DefaultConfig.safeJsonArray(infoJson, "parses");
             for (JsonElement opt : parses) {
                 if (!opt.isJsonObject()) continue;
                 JsonObject obj = (JsonObject) opt;
@@ -632,9 +632,9 @@ public class ApiConfig {
         if(live_api_url.isEmpty() || apiUrl.equals(live_api_url)){
             LOG.i("echo-load-config_live");
             initLiveSettings();
-            if(infoJson.has("lives") && infoJson.get("lives").isJsonArray()
-                    && infoJson.get("lives").getAsJsonArray().size() > 0){
-                JsonArray lives_groups=infoJson.get("lives").getAsJsonArray();
+            JsonArray lives_groups_cfg = DefaultConfig.safeJsonArray(infoJson, "lives");
+            if(lives_groups_cfg.size() > 0){
+                JsonArray lives_groups=lives_groups_cfg;
                 int live_group_index=Hawk.get(HawkConfig.LIVE_GROUP_INDEX,0);
                 if(live_group_index>lives_groups.size()-1)Hawk.put(HawkConfig.LIVE_GROUP_INDEX,0);
                 Hawk.put(HawkConfig.LIVE_GROUP_LIST,lives_groups);
@@ -693,7 +693,8 @@ public class ApiConfig {
                 if (!oneHostRule.isJsonObject()) continue;
                 JsonObject obj = (JsonObject) oneHostRule;
                 if (obj.has("host")) {
-                    String host = obj.get("host").getAsString();
+                    String host = DefaultConfig.safeJsonString(obj, "host", "");
+                    if (host.isEmpty()) continue;
                     if (obj.has("rule")) {
                         JsonArray ruleJsonArr = obj.getAsJsonArray("rule");
                         ArrayList<String> rule = new ArrayList<>();
@@ -885,7 +886,7 @@ public class ApiConfig {
 
                     // takagen99 : Getting EPG URL from File Config & put into Settings
                     if (livesOBJ.has("epg")) {
-                        String epg = livesOBJ.get("epg").getAsString();
+                        String epg = DefaultConfig.safeJsonString(livesOBJ, "epg", "");
                         System.out.println("EPG URL :" + epg);
                         putEPGHistory(epg);
                         // Overwrite with EPG URL from Settings
@@ -1105,7 +1106,7 @@ public class ApiConfig {
             LiveChannelGroup liveChannelGroup = new LiveChannelGroup();
             liveChannelGroup.setLiveChannels(new ArrayList<LiveChannelItem>());
             liveChannelGroup.setGroupIndex(groupIndex++);
-            String groupName = ((JsonObject) groupElement).get("group").getAsString().trim();
+            String groupName = DefaultConfig.safeJsonString((JsonObject) groupElement, "group", "").trim();
             liveChannelGroup.setGroupName(groupName);
             // String[] splitGroupName = groupName.split("_", 2);
             // liveChannelGroup.setGroupName(splitGroupName[0]);
@@ -1115,10 +1116,12 @@ public class ApiConfig {
             //     liveChannelGroup.setGroupPassword("");
             liveChannelGroup.setGroupPassword("");
             channelIndex = 0;
-            for (JsonElement channelElement : ((JsonObject) groupElement).get("channels").getAsJsonArray()) {
+            for (JsonElement channelElement : DefaultConfig.safeJsonArray((JsonObject) groupElement, "channels")) {
+                if (!channelElement.isJsonObject()) continue;
                 JsonObject obj = (JsonObject) channelElement;
                 LiveChannelItem liveChannelItem = new LiveChannelItem();
-                String channelName = obj.get("name").getAsString().trim();
+                String channelName = DefaultConfig.safeJsonString(obj, "name", "").trim();
+                if (channelName.isEmpty()) continue;
                 liveChannelItem.setChannelName(channelName);
                 liveChannelItem.setChannelIndex(channelIndex++);
                 liveChannelItem.setChannelNum(++channelNum);
@@ -1240,7 +1243,7 @@ public class ApiConfig {
                 //内嵌频道（{group,channels:[{name,urls}]} 形态）：直接解析，不经 proxy
                 LOG.i("echo-loadLiveApi-embedded");
                 loadLives(Hawk.get(HawkConfig.LIVE_GROUP_LIST, new JsonArray()));
-                Hawk.put(HawkConfig.EPG_URL, livesOBJ.has("epg")?livesOBJ.get("epg").getAsString():"");
+                Hawk.put(HawkConfig.EPG_URL, DefaultConfig.safeJsonString(livesOBJ, "epg", ""));
                 Hawk.put(HawkConfig.LIVE_PLAY_TYPE, Hawk.get(HawkConfig.PLAY_TYPE, 0));
                 Hawk.put(HawkConfig.LIVE_WEB_HEADER, null);
                 return;
@@ -1249,8 +1252,8 @@ public class ApiConfig {
                 // 直播分组项缺任一字段即抛异常，导致整张配置解析失败。统一安全读取。
                 String type= DefaultConfig.safeJsonString(livesOBJ, "type", "0");
                 if(type.equals("0") || type.equals("3")){
-                    url = livesOBJ.has("url")?livesOBJ.get("url").getAsString():"";
-                    if(url.isEmpty())url=livesOBJ.has("api")?livesOBJ.get("api").getAsString():"";
+                    url = DefaultConfig.safeJsonString(livesOBJ, "url", "");
+                    if(url.isEmpty())url=DefaultConfig.safeJsonString(livesOBJ, "api", "");
                     LOG.i("echo-liveurl"+url);
                     if(!url.startsWith("http://127.0.0.1")){
                         if(url.startsWith("http")){
@@ -1259,7 +1262,7 @@ public class ApiConfig {
                         url ="http://127.0.0.1:9978/proxy?do=live&type=txt&ext="+url;
                     }
                     if(type.equals("3")){
-                        String jarUrl = livesOBJ.has("jar")?livesOBJ.get("jar").getAsString().trim():"";
+                        String jarUrl = DefaultConfig.safeJsonString(livesOBJ, "jar", "").trim();
                         // String pyApi = livesOBJ.has("api")?livesOBJ.get("api").getAsString().trim():"";
                         // LOG.i("echo-pyApi1"+pyApi);
                         // if(pyApi.contains(".py")){

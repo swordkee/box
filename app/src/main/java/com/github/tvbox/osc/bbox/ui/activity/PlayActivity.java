@@ -905,6 +905,9 @@ public class PlayActivity extends BaseActivity {
         loadFoundCount.set(0);
         loadFoundVideoUrls = new LinkedList<String>();
         loadFoundVideoUrlsHeader = new HashMap<String, HashMap<String, String>>();
+        // NOTE(2026-10-26 API15 port): 与 PlayFragment 同根因——loadedUrls 属「一次嗅探会话」
+        // 状态，原来从不重置，换集/换源后一直累积。
+        if (loadedUrls != null) loadedUrls.clear();
     }
 
     public void play(boolean reset) {
@@ -1329,6 +1332,8 @@ public class PlayActivity extends BaseActivity {
     private WebView mSysWebView;
     private SysWebClient mSysWebClient;
     private Map<String, Boolean> loadedUrls = new HashMap<>();
+    /** 单次嗅探会话最多记录多少个 URL（防长会话无限涨） */
+    private static final int LOADED_URLS_LIMIT = 300;
     private LinkedList<String> loadFoundVideoUrls = new LinkedList<>();
     private HashMap<String, HashMap<String, String>> loadFoundVideoUrlsHeader = new HashMap<>();
     private AtomicInteger loadFoundCount = new AtomicInteger(0);
@@ -1610,6 +1615,8 @@ public class PlayActivity extends BaseActivity {
             boolean ad;
             if (!loadedUrls.containsKey(url)) {
                 ad = AdBlocker.isAd(url);
+                // NOTE(2026-10-26 API15 port): 加上限，防长会话无限涨
+                if (loadedUrls.size() >= LOADED_URLS_LIMIT) loadedUrls.clear();
                 loadedUrls.put(url, ad);
             } else {
                 ad = loadedUrls.get(url);
@@ -1788,6 +1795,8 @@ public class PlayActivity extends BaseActivity {
             boolean ad;
             if (!loadedUrls.containsKey(url)) {
                 ad = AdBlocker.isAd(url);
+                // NOTE(2026-10-26 API15 port): 加上限，防长会话无限涨
+                if (loadedUrls.size() >= LOADED_URLS_LIMIT) loadedUrls.clear();
                 loadedUrls.put(url, ad);
             } else {
                 ad = loadedUrls.get(url);

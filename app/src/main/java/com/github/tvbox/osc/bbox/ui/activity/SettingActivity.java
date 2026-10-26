@@ -117,6 +117,10 @@ public class SettingActivity extends BaseActivity {
     }
 
     private void initViewPager() {
+        // NOTE(2026-10-26 API15 port): 与 HomeActivity.initViewPager 同根因——
+        // fragments 是成员 List，只 add 不 clear。当前 init() 只调一次故未暴露，
+        // 但一旦将来重入（重建/刷新）就会翻倍让设置页出现重复 tab。
+        fragments.clear();
         fragments.add(ModelSettingFragment.newInstance());
         pageAdapter = new SettingPageAdapter(getSupportFragmentManager(), fragments);
         mViewPager.setAdapter(pageAdapter);

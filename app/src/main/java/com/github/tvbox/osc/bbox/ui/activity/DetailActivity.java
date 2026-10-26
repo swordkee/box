@@ -805,6 +805,9 @@ public class DetailActivity extends BaseActivity {
                         applyPendingSeries();
 
                         refreshList();
+                        // NOTE(2026-10-26 API15 port): 选中态必须在 refreshList()（它会
+                        // seriesAdapter.setNewData）之后同步，否则跑在空数据上无效。
+                        syncSeriesSelected();
                         if (showPreview) {
                             jumpToPlay();
                             llPlayerFragmentContainer.setVisibility(View.VISIBLE);
@@ -873,6 +876,31 @@ public class DetailActivity extends BaseActivity {
         } finally {
             pendingPlayIndex = -1;
             pendingSeriesName = null;
+        }
+    }
+
+    /** 把剧集网格的高亮同步到 vodInfo.playIndex（换源对齐后必须调，否则高亮停在旧位置） */
+    private void syncSeriesSelected() {
+        try {
+            if (vodInfo == null || seriesAdapter == null) return;
+            List<VodInfo.VodSeries> all = seriesAdapter.getData();
+            if (all == null || all.isEmpty()) return;
+            for (int i = 0; i < all.size(); i++) {
+                all.get(i).selected = (i == vodInfo.playIndex);
+            }
+            seriesAdapter.notifyDataSetChanged();
+            final int idx = vodInfo.playIndex;
+            mGridView.post(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        mGridView.setSelection(idx);
+                    } catch (Throwable ignore) {
+                    }
+                }
+            });
+        } catch (Throwable th) {
+            LOG.e("syncSeriesSelected: " + th);
         }
     }
 
@@ -992,6 +1020,11 @@ public class DetailActivity extends BaseActivity {
         }
         try {
             Toast.makeText(DetailActivity.this, "换个源试试…", Toast.LENGTH_SHORT).show();
+            // NOTE(2026-10-26 API15 port): 不能直接 tvQuickSearch.performClick()。
+            // 那条路会进 startQuickSearch()，而它有 `if (hadQuickStart) return;` 守卫
+            // ⇒ 只有第一次会真正搜索，之后播放失败就什么都不发生（自动换源只生效一次）。
+            // 这里显式重置 hadQuickStart 后重跑，保证每次失败都能拿到最新结果。
+            hadQuickStart = false;
             tvQuickSearch.performClick();
         } catch (Throwable th) {
             LOG.e("onPlayFailed: " + th);
@@ -1100,7 +1133,22 @@ public class DetailActivity extends BaseActivity {
                     continue;
                 data.add(video);
             }
-            quickSearchData.addAll(data);
+            // NOTE(2026-10-26 API15 port): ★ 去重后再追加。
+            // searchData() 是**每个源各回调一次**（searchResult() 按源并发下发请求），
+            // 而 quickSearchData 只在 startQuickSearch() 里 clear 一次
+            // ⇒ 原来直接 addAll 会让结果列表出现重复条目（同一个源的同一部片出现多次）。
+            // 接上自动换源后搜的源更多，重复会更明显。
+            for (Movie.Video v : data) {
+                boolean dup = false;
+                for (Movie.Video old : quickSearchData) {
+                    if (old.sourceKey != null && old.sourceKey.equals(v.sourceKey)
+                            && old.id != null && old.id.equals(v.id)) {
+                        dup = true;
+                        break;
+                    }
+                }
+                if (!dup) quickSearchData.add(v);
+            }
             EventBus.getDefault().post(new RefreshEvent(RefreshEvent.TYPE_QUICK_SEARCH, data));
         }
     }

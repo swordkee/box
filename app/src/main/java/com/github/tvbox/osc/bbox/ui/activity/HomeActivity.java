@@ -876,9 +876,13 @@ public class HomeActivity extends BaseActivity {
             if (mSiteSwitchAdapter == null) return;
             // 只重设数据，不重新 show()：重建弹框会丢焦点，用户正在用遥控器选源时很跳
             java.util.ArrayList<SwitchItem> items = buildSiteSwitchItems();
-            if (!items.isEmpty()) {
-                mSiteSwitchAdapter.setData(items, -1);
-            }
+            if (items.isEmpty()) return;
+            // NOTE(2026-10-26 API15 port): 必须传**合法下标**，不能传 -1。
+            // SelectDialogAdapter.onClick 里有 notifyItemChanged(select)，
+            // select=-1 时会抛 IndexOutOfBoundsException。-1 表示"沿用上次选中"。
+            int sel = mSiteSwitchSelect;
+            if (sel < 0 || sel >= items.size()) sel = 0;
+            mSiteSwitchAdapter.setData(items, sel);
         } catch (Throwable th) {
             LOG.e("refreshSiteSwitchItems: " + th);
         }
@@ -889,7 +893,7 @@ public class HomeActivity extends BaseActivity {
 
     /**
      * 组装换源列表：【源】配置项（本地文件，恒可用）+ 片源（按探测结果排序）。
-     * select 下标会写入 mSiteSwitchSelect。
+     * 选中项下标按「key 身份」计算后写入 mSiteSwitchSelect。
      */
     private java.util.ArrayList<SwitchItem> buildSiteSwitchItems() {
         // NOTE(2026-10-25): 顶部插入内置配置源（API_MAP，file:// 本地零网络依赖），
@@ -897,12 +901,9 @@ public class HomeActivity extends BaseActivity {
         java.util.ArrayList<SwitchItem> items = new java.util.ArrayList<>();
         ArrayList<String> nameHistory = Hawk.get(HawkConfig.API_NAME_HISTORY, new ArrayList<String>());
         HashMap<String, String> apiMap = Hawk.get(HawkConfig.API_MAP, new HashMap<String, String>());
-        String currentApi = Hawk.get(HawkConfig.API_NAME, "");
-        int select = -1;
         for (String n : nameHistory) {
             String u = apiMap.containsKey(n) ? apiMap.get(n) : n;
             items.add(new SwitchItem("【源】" + n, u));
-            if (n.equals(currentApi)) select = items.size() - 1;
         }
         List<SourceBean> sites = ApiConfig.get().getSwitchSourceBeanList();
         // NOTE(2026-10-26 API15 port): 已探测过的片源按「可用优先、延迟低的靠前」排序，
@@ -942,17 +943,43 @@ public class HomeActivity extends BaseActivity {
         if (sites != null) {
             for (SourceBean sb : sites) {
                 items.add(new SwitchItem(sb));
-                if (select < 0 && sb == ApiConfig.get().getHomeSourceBean()) select = items.size() - 1;
             }
         }
-        mSiteSwitchSelect = select < 0 ? 0 : select;
+        // NOTE(2026-10-26 API15 port): 选中项必须按「key 身份」定位，不能只靠下标。
+        // 上面按探测结果重排了片源，若当前源是片源，它的下标会随排序变化，
+        // 沿用旧下标会把高亮错打到别的源上（用户会以为选错了源）。
+        // 顺序：当前配置源 → 当前站点 → 0。
+        int sel = -1;
+        String curApiKey = Hawk.get(HawkConfig.API_URL, "");
+        for (int i = 0; i < items.size(); i++) {
+            SwitchItem it = items.get(i);
+            if (it.configUrl != null && it.configUrl.equals(curApiKey)) {
+                sel = i;
+                break;
+            }
+        }
+        if (sel < 0) {
+            SourceBean home = ApiConfig.get().getHomeSourceBean();
+            if (home != null) {
+                for (int i = 0; i < items.size(); i++) {
+                    SwitchItem it = items.get(i);
+                    if (it.site != null && home.getKey() != null && home.getKey().equals(it.site.getKey())) {
+                        sel = i;
+                        break;
+                    }
+                }
+            }
+        }
+        mSiteSwitchSelect = (sel < 0) ? 0 : sel;
         return items;
     }
 
     void showSiteSwitch() {
         java.util.ArrayList<SwitchItem> items = buildSiteSwitchItems();
         if (items.isEmpty()) return;
+        // buildSiteSwitchItems() 已把「当前选中项」写进 mSiteSwitchSelect（可能为 0）
         int select = mSiteSwitchSelect;
+        if (select < 0 || select >= items.size()) select = 0;
         // NOTE(2026-10-26 API15 port): 对片源（非【源】配置项）做健康探测，
         // 把「320ms / 空响应 / 403 / 超时」直接标在名字后面，并按可用性排序。
         // 实测各源失效形态差异极大（搜索接口空壳响应、403），不标出来只能一个个试。

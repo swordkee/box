@@ -104,7 +104,9 @@ public class OkGoHelper {
         JsonArray jsonArray = JsonParser.parseString(json).getAsJsonArray();
         if (type >= 1 && type < dnsHttpsList.size()) {
             JsonObject dnsConfig = jsonArray.get(type - 1).getAsJsonObject();
-            return dnsConfig.get("url").getAsString();  // 获取对应的 URL
+            // NOTE(2026-10-26 API15 port): 裸 get —— dns 配置项缺 url 时抛异常，
+            // 会让整个 DoH 初始化失败并回退成系统 DNS（电视上系统 DNS 常常解析不了）。
+            return DefaultConfig.safeJsonString(dnsConfig, "url", "");
         }
         return "";
     }
@@ -117,7 +119,7 @@ public class OkGoHelper {
         dnsHttpsList.add("关闭");
         for (int i = 0; i < jsonArray.size(); i++) {
             JsonObject dnsConfig = jsonArray.get(i).getAsJsonObject();
-            String name = dnsConfig.has("name") ? dnsConfig.get("name").getAsString() : "Unknown Name";
+            String name = DefaultConfig.safeJsonString(dnsConfig, "name", "Unknown Name");
             dnsHttpsList.add(name);
         }
         if(Hawk.get(HawkConfig.DOH_URL, 0)+1>dnsHttpsList.size())Hawk.put(HawkConfig.DOH_URL, 0);
@@ -150,7 +152,7 @@ public class OkGoHelper {
             if(dohSelector+1>jsonArray.size())Hawk.put(HawkConfig.DOH_URL, 0);
             for (int i = 0; i < jsonArray.size(); i++) {
                 JsonObject dnsConfig = jsonArray.get(i).getAsJsonObject();
-                String name = dnsConfig.has("name") ? dnsConfig.get("name").getAsString() : "Unknown Name";
+                String name = DefaultConfig.safeJsonString(dnsConfig, "name", "Unknown Name");
                 dnsHttpsList.add(name);
                 if(dohSelector==(i+1))ips = dnsConfig.has("ips") ? dnsConfig.getAsJsonArray("ips") : null;
             }
