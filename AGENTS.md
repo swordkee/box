@@ -38,6 +38,39 @@ $env:GRADLE_USER_HOME='E:\work\tvbox\ghome'
 
 **当前唯一实测可播的纯 API 源 = 虎牙资源**（`https://www.huyaapi.com/api.php/provide/vod`，真 TS + AES-128，248~414 KB/s），已在 `assets/configs/api_only.json` 里排首位。
 
+### ★ 探测源存活必须用「搜索接口」，列表接口没有判别力
+
+`SourceHealthChecker` 第一版用列表 `ac=videolist&pg=1` 探测，**20 个源全部通过**
+（HTTP 200、体积 3~50 万字节都正常）——完全测不出问题。换成搜索
+`ac=detail&wd=小猪` 后立刻分出 **10 可用 / 10 失效**，与人工实测一致：
+
+| 形态 | 站点 |
+|---|---|
+| 搜索接口返回 **6~57 字节空壳**（HTTP 200） | 牛牛 / 快车 / 丫丫 / 闪电 / 天涯 / 茅台 / 新浪 |
+| **403** | 无尽 / 索尼 |
+| 接口通但固定关键字**搜不到** | 暴风 |
+| 可用 | 虎牙 / 量子 / 非凡 / 百度 / 极速 / 光速 / 电影天堂 / 最大 / 豪华 / 建安 |
+
+判据：非 2xx → `HTTP403`；体积 < 200 → `空响应`；无 `vod_id`/`list` → `格式异常`；
+耗时 > 5s → `超时`；> 2.5s → `慢Ns`；无 `vod_id` → `无此片`（**仍算可用**，只是词没资源）。
+
+## 3b. 点播跨源自动换源（2026-10-26 新增）
+
+直播有一整套自动救场（换源→换频道→软解兜底），点播原本只有 `autoRetry()`
+（**本源内**重试 2 次 + 切播放器）——源本身不可播时永远救不回来。
+
+链路：`PlayFragment.errorWithRetry` 重试耗尽 → post `RefreshEvent.TYPE_PLAY_FAILED`
+→ `DetailActivity.onPlayFailed()` → 复用已有「快速搜索」（`tvQuickSearch.performClick()`）
+→ 结果列表点一下就是 `loadDetail(video.id, video.sourceKey)` 跨源切换。
+
+两个必须注意的点：
+- **只处理 `showPreview`**（详情页内预览/全屏预览）。独立 `PlayActivity` 时不弹框，
+  因为那时详情页不在前台，弹 Dialog 会错位。
+- **换源必须对齐集数**：新源集数/命名常不同（还可能带全角空格）。`applyPendingSeries()`
+  按「集名完全相同（去空格/全角空格）→ 集名互相包含 → 原序号（夹到范围）→ 第 0 集」
+  对齐，否则换源后会从第 1 集重播。
+
+
 ## 3. ★ 改 `api_only.json` 只许调顺序，绝不可重编号 key
 
 `key`（api00…api19）会作为 `sourceKey` 入库（历史记录/收藏/VodInfo 都按它关联）。
@@ -86,6 +119,12 @@ DefaultConfig.safeJsonObject(obj, key)              // 缺失/非对象 → null
 - 根因：`mGridViewFlag`（线路栏）缺 `nextFocusUp`，TV 焦点搜索回退到网格自身。
 - 修法：XML 补焦点链（`mGridViewFlag.nextFocusUp=@id/tvPlay`、`tvPlay.nextFocusDown=@id/mGridViewFlag`）+ `DetailActivity.onKeyDown` 用**菜单键直接切全屏**（`onKeyUp` 要吞掉，否则二次触发）。
 - 通用口径：**凡是依赖"焦点能走到"的功能，都要给一个不依赖焦点的快捷键兜底**。
+
+## 7b. 弹框数据刷新不要重新 show()
+
+换源弹框里探测结果异步到达后要更新文字。**重建弹框（`dialog.show()`）会丢焦点**，
+用户正用遥控器选中某一项时体验极差。正确做法：保存 adapter 引用，只
+`adapter.setData(items, select)`（内部 `notifyDataSetChanged`），弹框对象不重建。
 
 ## 8. 调试技巧（省大量来回）
 
