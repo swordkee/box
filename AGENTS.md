@@ -113,6 +113,26 @@ DefaultConfig.safeJsonObject(obj, key)              // 缺失/非对象 → null
 
 判例：`EpgUtil.EPG_CACHE_LIMIT = 2000` 声明了但**从未被引用**，静态 map 照样无上限增长（假修复）。改任何"加保护"的代码，改完 `grep` 一次常量名确认真的有使用点。
 
+## 6b. ★ 成员级集合「只增不清」是这批最高频的 bug 形态
+
+**症状**：第一次进正常，**操作过一次（切源/切页）之后**列表越滚越长、重复项堆叠，
+且不会自己恢复 —— 只有重启进程才干净。
+
+**已实锤三处同型**（都是成员级 List/Map + 「add/put 之前忘了 clear」）：
+
+| 位置 | 后果 | 用户可见症状 |
+|---|---|---|
+| `ApiConfig.parseJson` 不清 `sourceBeanList` | 每次 loadConfig 把新站**追加**到旧站后（3→23→35） | **「切源后主页/换源弹框多出一堆东西」** |
+| `ApiConfig.parseJson` 不清 `searchSourceBeanList` | 搜索用缓存快照，`if isEmpty()` 才重建 ⇒ 永远返回旧集合 | 搜索漏新站 |
+| `HomeActivity.initViewPager` 不清 `fragments` | 每次调用翻倍（6→12→18→24），而该方法会被多次调用（sortResult 观察者 / initData 重入 / refreshEmpty / loadConfig 回调） | 栏目页数量成倍增长 |
+
+**排查口径**：凡是 `private final List/Map/Set` 成员在「重建 UI」的函数里被 `add`，
+先确认同一函数里有 `clear()`。并注意这些重建函数往往**不止一个调用点**。
+
+**顺带必查**：清理后重置的索引（`currentSelected`/`sortFocused`/`LIVE_GROUP_INDEX`）
+必须夹到 `[0, size)`，否则集合变小后 `setCurrentItem`/`get(pos)` 越界。
+
+
 ## 7. 详情页遥控焦点不可靠 → 用菜单键当稳定入口
 
 - 症状：详情页按上键，焦点在剧集网格里循环，到不了顶部按钮行，「全屏」按钮抢不到焦点。
