@@ -551,6 +551,13 @@ public class HomeActivity extends BaseActivity {
 
     private void initViewPager(AbsSortXml absXml) {
         if (sortAdapter.getData().size() > 0) {
+            // NOTE(2026-10-26 API15 port): ★ 必须在追加前清空 fragments。
+            // fragments 是成员级 List，而 initViewPager 会被调用多次：
+            //   ① sortResult 观察者触发（切源重建后可能连发两次）
+            //   ② initData 重入 / refreshEmpty / loadConfig 回调
+            // 原来只 add 不清，栏目数量会 1→2→4→8 翻倍增长，
+            // 表现就是用户反馈的「切过源之后，默认源后面多出一堆二级分类」。
+            fragments.clear();
             for (MovieSort.SortData data : sortAdapter.getData()) {
                 if (data.id.equals("my0")) {
                     if (Hawk.get(HawkConfig.HOME_REC, 0) == 1 && absXml != null && absXml.videoList != null && absXml.videoList.size() > 0) {
@@ -562,6 +569,10 @@ public class HomeActivity extends BaseActivity {
                     fragments.add(GridFragment.newInstance(data));
                 }
             }
+            // 栏目数变了，selected/focused 索引必须夹到合法范围，否则 setCurrentItem 越界
+            int n = sortAdapter.getData().size();
+            if (currentSelected < 0 || currentSelected >= n) currentSelected = 0;
+            if (sortFocused < 0 || sortFocused >= n) sortFocused = 0;
             pageAdapter = new HomePageAdapter(getSupportFragmentManager(), fragments);
             try {
                 Field field = ViewPager.class.getDeclaredField("mScroller");

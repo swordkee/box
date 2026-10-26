@@ -28,10 +28,13 @@ public class DefaultConfig {
 
     public static List<MovieSort.SortData> adjustSort(String sourceKey, List<MovieSort.SortData> list, boolean withMy) {
         List<MovieSort.SortData> data = new ArrayList<>();
+        if (list == null) list = new ArrayList<>();
         if (sourceKey != null) {
             SourceBean sb = ApiConfig.get().getSource(sourceKey);
-            ArrayList<String> categories = sb.getCategories();
-            if (!categories.isEmpty()) {
+            // NOTE(2026-10-26 API15 port): sb 可能为 null（切源过程中 sourceKey 尚未就绪 /
+            // 站点已被移除），原来直接 sb.getCategories() 会 NPE，导致首页栏目加载中断。
+            ArrayList<String> categories = (sb == null) ? null : sb.getCategories();
+            if (categories != null && !categories.isEmpty()) {
                 for (String cate : categories) {
                     for (MovieSort.SortData sortData : list) {
                         if (sortData.name.equals(cate)) {

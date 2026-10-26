@@ -531,7 +531,16 @@ public class ApiConfig {
             LOG.e("parseJson: sites 缺失或非数组");
             return;
         }
+        // NOTE(2026-10-26 API15 port): ★ 解析新配置前必须清空旧站点表。
+        // sourceBeanList 是成员 LinkedHashMap，原先只 put 不 clear ⇒ 每次 loadConfig
+        // 都把新站"追加"到旧站后面，站点列表越滚越长。
+        // 用户可见症状：第一次进正常只有默认几个源，**切过源之后**列表里多出一大堆
+        // 上一份配置的站点（看起来像"默认源后面多了一堆二级分类"）。
+        // 同理清掉搜索快照，否则 getSearchSourceBeanList 会一直返回旧集合。
+        sourceBeanList.clear();
+        searchSourceBeanList = new ArrayList<>();
         for (JsonElement opt : sitesEl.getAsJsonArray()) {
+            if (!opt.isJsonObject()) continue;
             JsonObject obj = (JsonObject) opt;
             // NOTE(2026-10-26): 原为裸 obj.get("key").getAsString() 等——任何字段缺失都会
             // 抛异常导致整个配置解析失败（一张配置全废）。改为安全读取，跳过无效站点。
