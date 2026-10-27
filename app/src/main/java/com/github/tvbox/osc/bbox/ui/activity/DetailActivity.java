@@ -808,6 +808,24 @@ public class DetailActivity extends BaseActivity {
                         // NOTE(2026-10-26 API15 port): 选中态必须在 refreshList()（它会
                         // seriesAdapter.setNewData）之后同步，否则跑在空数据上无效。
                         syncSeriesSelected();
+                        // NOTE(2026-10-27): initView 阶段 previewPlayerBlock 还是 gone
+                        // （layout 里 visibility=gone），gone 的 View 无法获得焦点，
+                        // 那个 requestFocus() 是无效的 → 焦点自动落到剧集网格，
+                        // 用户想全屏得按很多次方向键把焦点挪上去。
+                        // 这里等预览区可见之后再要一次焦点，做到「进详情页即可按 OK 全屏」。
+                        if (showPreview) {
+                            llPlayerFragmentContainerBlock.post(new Runnable() {
+                                @Override
+                                public void run() {
+                                    try {
+                                        if (llPlayerFragmentContainerBlock.getVisibility() == View.VISIBLE) {
+                                            llPlayerFragmentContainerBlock.requestFocus();
+                                        }
+                                    } catch (Throwable ignore) {
+                                    }
+                                }
+                            });
+                        }
                         if (showPreview) {
                             jumpToPlay();
                             llPlayerFragmentContainer.setVisibility(View.VISIBLE);

@@ -6,6 +6,7 @@ import android.content.res.AssetManager;
 import android.content.res.Resources;
 import android.graphics.BitmapFactory;
 import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Looper;
@@ -184,12 +185,26 @@ public abstract class BaseActivity extends AppCompatActivity implements CustomAd
     }
 
     protected static BitmapDrawable globalWp = null;
+    /** 兜底背景只解码一次（原来每次 OOM 后都重新 setBackgroundDrawableResource，二次 OOM 直接崩） */
+    private static Drawable fallbackBg = null;
+    /** 一旦解码失败就置位，本进程内不再尝试任何 Bitmap 壁纸（1GB 机器宁可用纯色也别崩） */
+    private static volatile boolean wallpaperGiveUp = false;
 
     public void changeWallpaper(boolean force) {
         // NOTE(2026-10-25): 缓存命中必须直接返回——原逻辑 set 完 drawable 后仍继续 decode，
         // 每次 onResume 都全量解一张壁纸大图 → 1GB 机器必 OOM（点详情即崩的主因）
         if (!force && globalWp != null) {
-            getWindow().setBackgroundDrawable(globalWp);
+            try {
+                getWindow().setBackgroundDrawable(globalWp);
+                return;
+            } catch (Throwable ignore) {
+                // set 失败也不要紧，继续走兜底
+            }
+        }
+        // NOTE(2026-10-27): 已经确认过这台机器解不动位图，就别再试了——
+        // 之前是「每次 onResume 都重试 → 每次都 OOM → 点进详情必崩」。
+        if (wallpaperGiveUp) {
+            applyFallbackBg();
             return;
         }
         try {
@@ -227,13 +242,51 @@ public abstract class BaseActivity extends AppCompatActivity implements CustomAd
             } else {
                 globalWp = null;
             }
+        } catch (OutOfMemoryError oom) {
+            // 明显是解不动了：本进程内彻底放弃位图壁纸
+            oom.printStackTrace();
+            globalWp = null;
+            wallpaperGiveUp = true;
         } catch (Throwable throwable) {
             throwable.printStackTrace();
             globalWp = null;
         }
-        if (globalWp != null)
-            getWindow().setBackgroundDrawable(globalWp);
-        else
-            getWindow().setBackgroundDrawableResource(R.drawable.app_bg);
+        if (globalWp != null) {
+            try {
+                getWindow().setBackgroundDrawable(globalWp);
+            } catch (Throwable th) {
+                applyFallbackBg();
+            }
+        } else {
+            applyFallbackBg();
+        }
+    }
+
+    /**
+     * 应用兜底背景。
+     * ★ 关键：这里绝不能再直接 setBackgroundDrawableResource —— 那会在 OOM 之后
+     * 再解一张位图（R8 mapping 证实崩溃点正是原来的第 237 行），二次 OOM 没有保护。
+     * 兜底图只解码一次并缓存；连它都失败就退到纯色。
+     */
+    private void applyFallbackBg() {
+        if (fallbackBg == null) {
+            try {
+                fallbackBg = getResources().getDrawable(R.drawable.app_bg);
+            } catch (Throwable th) {
+                fallbackBg = null;
+            }
+        }
+        try {
+            if (fallbackBg != null) {
+                getWindow().setBackgroundDrawable(fallbackBg);
+                return;
+            }
+        } catch (Throwable ignore) {
+        }
+        try {
+            // NOTE: Window 没有 setBackgroundColor，纯色兜底只能设在 decorView 上
+            getWindow().getDecorView().setBackgroundColor(0xFF101418);
+        } catch (Throwable ignore) {
+        }
     }
 }

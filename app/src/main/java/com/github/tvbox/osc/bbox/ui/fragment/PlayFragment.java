@@ -899,6 +899,8 @@ public class PlayFragment extends BaseLazyFragment {
     }
 
     private int autoRetryCount = 0;
+    /** 快捷键提示只弹一次（每次进详情页重置） */
+    private boolean hintShown = false;
     private long lastRetryTime = 0;  // 记录上次调用时间（毫秒）
 
     private boolean allowSwitchPlayer = true;
@@ -984,6 +986,16 @@ public class PlayFragment extends BaseLazyFragment {
         setTip("正在获取播放信息", true, false);
         String playTitleInfo = mVodInfo.name + " " + vs.name;
         mController.setTitle(playTitleInfo);
+        // NOTE(2026-10-27): 首次进入播放时提示快捷键。
+        // 详情页的遥控焦点导航不稳定（剧集网格会吸收上下键），用户很难把焦点挪到「全屏」按钮，
+        // 所以这里明确告知：按菜单键可直接全屏。只提示一次，避免每次换集都弹。
+        if (!hintShown) {
+            hintShown = true;
+            try {
+                Toast.makeText(mContext, "按【菜单键】可直接全屏", Toast.LENGTH_LONG).show();
+            } catch (Throwable ignore) {
+            }
+        }
 
         stopParse();
         initParseLoadFound();
