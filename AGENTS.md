@@ -176,7 +176,61 @@ DefaultConfig.safeJsonObject(obj, key)              // 缺失/非对象 → null
 
 ## 11. 设备侧（只读常识，别乱动）
 
-- `pm disable-user` 被厂商保护包 `android.setting.system.protection` 拦截（rc=137）→ 只能用 `am force-stop` + 开机钩子 `/data/local/system/etc/install-recovery.sh`。
-- **`com.hisensecpa.tv` = VIDAA 桌面本体，绝不能 force-stop**（曾误杀导致进不了桌面）。
+- `pm disable-user` 被厂商保护包 `android.setting.system.protection` 拦截（rc=137）→ 只能用 `am force-stop` + 开机钩子 `/data/local/system/etc/install-recovery.sh`。- **`com.hisensecpa.tv` = VIDAA 桌面本体，绝不能 force-stop**（曾误杀导致进不了桌面）。
 - 黑屏恢复：`am force-stop com.jamdeo.tv.resources` 然后 `am start -n com.hisensecpa.tv/com.gala.video.app.epg.HomeActivity`。
 - DLNA 接收端用 cling 2.1.2（jupnp 需 API21+），默认关闭（`HawkConfig.DLNA_ENABLE=false`）。
+
+## 12. 桌面替换：Aerial Lite（2026-10-29 实测成功）
+
+`pengchujin/aerial-tv` 的 **Aerial Lite 1.7**（`app.orchard.tv.lite`，`sdkVersion:14`）**能在 Android 4.0.4 真机跑**，
+是该项目的首次 4.0.4 真机验证（提交为 issue #913）。
+
+### 安装与接管
+
+```sh
+adb install -r aerial-lite.apk
+adb shell am start -n app.orchard.tv.lite/.HomeActivity
+# 然后按遥控器主页键 → 系统弹「选择要使用的应用程序」→ 勾「设为默认选项」→ 选 Aerial Lite
+```
+
+- **4.0.4 上没有 `cmd` / `wm` / `settings` / `appops` / `tv_input`**，无法从 shell 设默认桌面，只能靠系统弹框手选
+- 选中后 `Preferred Activities` 会记录，`input keyevent 3` 直达，**重启也保持**
+- PSS **31.7MB**（原 VIDAA 桌面 55.7MB，更省）
+
+### ★ 遥控器实体键被海信固件私有劫持（关键坑）
+
+`input keyevent 3` 能进 Aerial，**遥控器实体主页键不能** —— 走私有通道，绕过标准 InputDispatcher：
+
+| 按键 | 被劫持到 |
+|---|---|
+| 主页键 | `com.jamdeo.tv.resources/.DefaultHomeActivity`（TVResources，系统内第二层桌面） |
+| APP 键 | `com.hisense.appcenter/.AppCenterHomeActivity` |
+| VOD 键 | `com.jamdeo.tv.vod/.VodWaitingActivity` |
+
+**取不到键值**（都试过，别重复）：`getevent -t` 无事件、直读 `/dev/input/event1` 无事件、
+清 logcat 后按键无 `keycode`/`dispatchKey` 记录、`dumpsys input` 无输出、0.5s 采样 40 次前台无变化。
+⇒ **无法做按键映射，只能用守护轮询**。
+
+### 守护方案（`/data/local/aerial_guard.sh`，已部署并验证）
+
+每 1 秒读 `mResumedActivity`，只对这三个劫持包动作：
+
+```sh
+case "$CUR" in
+  *com.jamdeo.tv.vod*)                               am start -n <TVBox的HomeActivity> ;;
+  *com.jamdeo.tv.resources*|*com.hisense.appcenter*) am start -n app.orchard.tv.lite/.HomeActivity ;;
+esac
+```
+
+四项实测通过：VOD 劫持→TVBox、主页劫持→Aerial、APP 劫持→Aerial、正常开 App 不受干扰。
+重启后自动拉起（`userinit.sh` 会启动并保活）。
+
+### 开机顺序注意
+
+重启后 `com.hisense.store.tv`（聚好看商店）会**先抢前台**。`userinit.sh` 用「12 秒后循环 5 次 `am start` Aerial」抢回，
+且**必须先确认 Aerial 在前台，再 force-stop `com.hisensecpa.tv`**，否则黑屏（踩过一次）。
+
+### 注意
+
+- 电视重启会清空 `/mnt/sdcard`，测试脚本要放 `/data/local/`
+- 装 Aerial 后 VIDAA 桌面可清（省 55MB），但它是唯一兜底 —— Aerial 被卸载就会没桌面，卸前先确认
